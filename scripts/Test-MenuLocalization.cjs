@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync('src/Localizer.Plugin/Web/admin.html','utf8');
+const dictionary=JSON.parse(fs.readFileSync('src/Localizer.Plugin/Web/menu.zh-Hans.json','utf8'));
+const source=html.slice(html.indexOf('        function menuText('),html.indexOf('        function localizeMenu('));
+const ctx=vm.createContext({menuLanguage:'zh-Hans',menuDictionary:dictionary});vm.runInContext(source,ctx);
+assert.equal(ctx.menuText('Library display'),'媒体库显示');
+assert.equal(ctx.menuText('Missing titles: Chinese 3 · English 7'),'缺少标题译文：中文 3 · 英文 7');
+assert.equal(ctx.menuText('Titles / Original'),'标题 / 原文');
+assert.equal(ctx.menuText('Chinese · Saved'),'中文 · 已保存');
+assert.equal(ctx.menuText('ドラマ'),'ドラマ');
+assert.equal(ctx.menuText('synthetic-model-id'),'synthetic-model-id');
+ctx.menuLanguage='en';assert.equal(ctx.menuText('Chinese · Saved'),'Chinese · Saved');
+new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
+console.log(JSON.stringify({passed:8,failed:0,checks:['Chinese primary labels','numeric field counts','original field label','composite status','source text untouched','model identifier untouched','English mode','full script syntax']}));
+// Translate the language selector's accessible name, while its language choices stay literal.
+const attrs=new Map([['aria-label','Menu language']]);
+const menu={closest:()=>null,hasAttribute:key=>attrs.has(key),getAttribute:key=>attrs.get(key),setAttribute:(key,value)=>attrs.set(key,value)};
+Object.assign(ctx,{menuLanguage:'zh-Hans',menuObserver:{disconnect(){},observe(){}},uiTextSources:new WeakMap(),uiAttributeSources:new WeakMap(),NodeFilter:{SHOW_TEXT:4},document:{createTreeWalker:()=>({nextNode:()=>false})},page:{querySelectorAll:selector=>selector==='[aria-label],[title],[placeholder],[data-label]'?[menu]:[],setAttribute(){}},lib:{querySelector:()=>null}});
+vm.runInContext(html.slice(html.indexOf('        function localizeMenu('),html.indexOf('        function refreshFieldDisplayControls(')),ctx);
+ctx.localizeMenu();assert.equal(attrs.get('aria-label'),'菜单语言');
+ctx.menuLanguage='en';ctx.localizeMenu();assert.equal(attrs.get('aria-label'),'Menu language');
+console.log(JSON.stringify({passed:2,failed:0,checks:['menu language accessible name translated','accessible name round trip']}));

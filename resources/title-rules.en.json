@@ -1,0 +1,5 @@
+{
+  "version": "general-title-rules-en-v1",
+  "instructions": "Use natural English while preserving the source meaning, viewpoint, names, numbers, dates, units and edition information. Translate from the language actually supplied. Do not invent omitted subjects, gender, relationships or plot details. Preserve short titles and numeric titles when appropriate. Copy every __JML_PERSON_*__ placeholder exactly once without changing it.",
+  "rules": []
+}
