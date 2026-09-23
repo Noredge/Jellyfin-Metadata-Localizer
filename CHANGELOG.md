@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.11.0-preview.1 — local review candidate
+## 0.11.0-preview.1 — 2026-09-22
 
 - Prepare a standalone general-purpose source tree and manual-install package for Jellyfin 12.0.0 on Windows x64.
 - Replace domain-specific translation rules, examples, and genre vocabulary with general movie defaults.
@@ -15,4 +15,4 @@
 
 This candidate preserves the existing separation of original sources, translation candidates, and shared-field applications. It retains NFO ownership checks, metadata-saver checks, conflict detection, and restoration preconditions.
 
-No public release or GitHub Actions run has occurred for this candidate.
+This is a preview release for early feedback.

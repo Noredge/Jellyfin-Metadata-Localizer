@@ -25,7 +25,7 @@
 
 ## 快速开始
 
-1. 在成功的 [Build and check](https://github.com/Noredge/Jellyfin-Metadata-Localizer/actions/workflows/ci.yml) 工作流中下载 `windows-preview` 构建产物，其中包含插件 ZIP 和校验和。
+1. 在 [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.11.0-preview.1) 下载插件 ZIP 和 `SHA256SUMS.txt`，安装前核对校验和。
 2. 备份并停止 Jellyfin，将 ZIP 中的 `Localizer` 文件夹放入服务器插件目录。若有旧版插件，先移到插件目录之外再替换。
 3. 启动 Jellyfin，进入 **控制台 → 插件 → Metadata Localizer → 设置**，选择服务、模型和语言。
 4. 先在小型测试库中确认原文，生成并检查译文，再应用到一部影片，并尝试恢复。

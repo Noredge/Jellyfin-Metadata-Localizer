@@ -25,7 +25,7 @@ Earlier Jellyfin versions are not supported. Other versions and deployment platf
 
 ## Quick start
 
-1. Download the `windows-preview` artifact from a successful [Build and check](https://github.com/Noredge/Jellyfin-Metadata-Localizer/actions/workflows/ci.yml) run. It contains the plugin ZIP and its checksum.
+1. Download the plugin ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.11.0-preview.1). Verify the checksum before installing.
 2. Back up and stop Jellyfin, then install the ZIP's `Localizer` folder into the server's plugin directory. Move any previous plugin version outside that directory before replacing it.
 3. Restart Jellyfin and open **Dashboard → Plugins → Metadata Localizer → Settings**. Choose your service, model, and languages.
 4. Start with a small test library: confirm the original source, generate and review a translation, then apply it and try restoring it.
