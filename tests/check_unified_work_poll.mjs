@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {workFixture} from './work_dom_fixture.mjs';
+const checks=[],row={id:'fixture',field:'Term',state:'completed',step:'verify',attempt_count:1,request_ms:5,save_ms:1,display_ms:0,updated_utc:'one'};
+let f=workFixture();f.setHandler(async()=>[row]);await f.c.loadWork();const detail=f.all('[data-attempt]')[0];detail.querySelector('div').textContent='expanded request';detail.dataset.loaded='true';
+let resolve;f.setHandler(route=>route.startsWith('work?')?new Promise(done=>resolve=done):[]);const pending=f.c.loadWork(true);detail.open=true;resolve([row]);await pending;
+assert.equal(f.all('[data-attempt]')[0],detail);assert.equal(detail.querySelector('div').textContent,'expanded request');checks.push({name:'poll response preserves request panel opened while fetch was pending',passed:true});
+f.setHandler(async()=>[row]);await f.c.loadWork(false);assert.notEqual(f.all('[data-attempt]')[0],detail);checks.push({name:'explicit pagination replaces previous detail nodes',passed:true});
+await f.c.loadWork(true);assert.match(f.list.innerHTML,/data-attempt="fixture"/);checks.push({name:'collapsed periodic work updates normally',passed:true});
+const result={status:'passed',checks};if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

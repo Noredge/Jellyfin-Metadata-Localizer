@@ -6,6 +6,9 @@ namespace Localizer.Translation;
 /// <summary>Validates public HTTPS API bases and connects only to checked public addresses.</summary>
 public static class PublicCloudEndpoint
 {
+    private static readonly Lazy<HttpMessageHandler> SharedHandler = new(CreateHandler);
+    internal static HttpClient CreateClient(HttpMessageHandler? testHandler, TimeSpan timeout) =>
+        new(testHandler ?? SharedHandler.Value, disposeHandler: testHandler is not null) { Timeout = timeout };
     public static string Canonicalize(string endpoint)
     {
         if (string.IsNullOrWhiteSpace(endpoint) || endpoint.Length > 2048 || endpoint.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))

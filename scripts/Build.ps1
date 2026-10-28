@@ -9,8 +9,8 @@ $env:DOTNET_NOLOGO = '1'
 $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
 Push-Location $repo
 try {
-    & $Dotnet restore src/Localizer.Plugin/Localizer.Plugin.csproj --locked-mode --configfile NuGet.config
+    & $Dotnet restore -m:1 /nodeReuse:false src/Localizer.Plugin/Localizer.Plugin.csproj --locked-mode --configfile NuGet.config
     if ($LASTEXITCODE -ne 0) { throw 'Locked restore failed.' }
-    & $Dotnet build src/Localizer.Plugin/Localizer.Plugin.csproj --no-restore -c Release -p:ContinuousIntegrationBuild=true
+    & $Dotnet build -m:1 /nodeReuse:false -p:UseSharedCompilation=false src/Localizer.Plugin/Localizer.Plugin.csproj --no-restore -c Release -p:ContinuousIntegrationBuild=true
     if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
 } finally { Pop-Location }

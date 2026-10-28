@@ -16,7 +16,7 @@ internal static class JellyfinMovieAccess
     {
         if (key.ServerId != host.SystemId || !Guid.TryParse(key.LibraryId, out var libraryId)
             || !Guid.TryParse(key.ItemId, out var itemId) || !selectedLibraries.Contains(libraryId)) return null;
-        // Use a query with an empty-result path when the requested movie no longer exists.
+        // GetItemById can throw for a nonexistent ID on 10.11.11. This query has an empty-result path.
         if (library.GetItemList(new InternalItemsQuery { ItemIds = [itemId], IncludeItemTypes = [BaseItemKind.Movie] })
             .SingleOrDefault() is not Movie movie) return null;
         if (confirmedPath is null || !Path.IsPathFullyQualified(movie.Path) || !Path.IsPathFullyQualified(confirmedPath)

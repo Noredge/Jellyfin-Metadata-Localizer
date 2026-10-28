@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0-preview.1
+
+- New unified database, one durable queue and one public HTTPS compatible connection.
+- Overview/Movies/Settings workflow, draft model lookup, optional test, editable history and automatic display of submitted results.
+- Missing-only fill, source/conflict/unknown-outcome protections, searchable paged dictionary/person rules and actionable issues.
+- Read pooling, batched detail reads, owner search index, bounded NFO reuse and idle request backoff.
+- Separate `metadata-localizer-v2` data; automatic processing starts off. No old configuration/data/job import, multi-service profiles or LM Studio native support.
+- New offline unified backup/restore helper; old releases and history are retained.
+
 ## 0.11.0-preview.1 — 2026-09-22
 
 - Prepare a standalone general-purpose source tree and manual-install package for Jellyfin 12.0.0 on Windows x64.

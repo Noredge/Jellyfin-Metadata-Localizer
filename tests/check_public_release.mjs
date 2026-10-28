@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+const html=fs.readFileSync(new URL('../src/Localizer.Plugin/Web/unified.html',import.meta.url),'utf8'),checks=[];
+const check=(name,fn)=>{fn();checks.push({name,passed:true});};
+check('complete embedded scripts parse successfully',()=>{for(const match of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);});
+check('new installation explains separate data and older data retention',()=>{assert(html.includes('id="luLegacyNotice"'));assert(html.includes('不会导入或覆盖'));assert(!html.includes('已有私用数据请先'));});
+check('public page includes English setup and backup guidance',()=>{assert(html.includes('Older or other-branch data was detected'));assert(html.includes('Create new database'));});
+const plugin=fs.readFileSync(new URL('../src/Localizer.Plugin/Plugin.cs',import.meta.url),'utf8');
+check('public identity retained and personal fork identity excluded',()=>{assert(plugin.includes('12bb696e-b52a-4b98-a4fa-39d32bfca5aa'));assert(!plugin.includes('c12192da'));assert(!plugin.includes('Metadata Localizer Private'));});
+check('shipping prompt resources are general rules',()=>{for(const lang of ['en','zh-Hans']){const rules=JSON.parse(fs.readFileSync(new URL('../resources/title-rules.'+lang+'.json',import.meta.url),'utf8'));assert(rules.version.startsWith('general-title-rules'));assert.equal(rules.rules.length,0);}});
+const elements=new Map();const get=s=>{if(!elements.has(s))elements.set(s,{value:'',innerHTML:'',textContent:'',hidden:false});return elements.get(s);};
+let legacy=true;const c=vm.createContext({state:null,active:'overview',$:get,name:String,escape:String,api:async()=>({ready:false,legacyDataPresent:legacy,health:{state:'Unavailable'},libraries:[]}),status:()=>{}});
+vm.runInContext(html.split(/\r?\n/).find(x=>x.startsWith('async function loadState(')),c);await c.loadState();
+check('setup displays old-data notice only when applicable',()=>assert.equal(get('#luLegacyNotice').hidden,false));legacy=false;await c.loadState();
+check('fresh installation hides older-data notice',()=>assert.equal(get('#luLegacyNotice').hidden,true));
+const result={status:'passed',checks,realModelRequests:0};if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

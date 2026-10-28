@@ -1,22 +1,13 @@
-Jellyfin Metadata Localizer
-Local preview candidate: 0.11.0-preview.1
+Jellyfin Metadata Localizer 0.12.0-preview.1
 
-The proposed public license for this source tree is GPL-3.0-only; see LICENSE.
-The license text is from the official Jellyfin plugin template:
-https://github.com/jellyfin/jellyfin-plugin-template/blob/master/LICENSE
+GPL-3.0-only; see LICENSE. This is an independent, unofficial Jellyfin plugin.
+Jellyfin: https://github.com/jellyfin/jellyfin
+License source: https://github.com/jellyfin/jellyfin-plugin-template/blob/master/LICENSE
 
-This is an independent plugin and is not an official Jellyfin component.
-Jellyfin is developed by the Jellyfin contributors:
-https://github.com/jellyfin/jellyfin
-
-The build uses Jellyfin 12.0.0 NuGet contracts and .NET 10 framework libraries.
-Data access uses Microsoft.Data.Sqlite and its transitive SQLitePCLRaw
-dependencies, as recorded in the project files and dependency lock files.
-Those runtime libraries are provided by the Jellyfin host and are not included
-in this plugin ZIP. Their upstream licenses and notices remain applicable:
-https://github.com/dotnet/efcore/blob/main/LICENSE.txt
+The build uses pinned Jellyfin 12.0.0 NuGet contracts and .NET 10 framework libraries.
+Microsoft.Data.Sqlite and SQLitePCLRaw dependencies are recorded in lock files;
+their runtime libraries are supplied by Jellyfin and are not included in this ZIP.
+Upstream licenses: https://github.com/dotnet/efcore/blob/main/LICENSE.txt
 https://github.com/ericsink/SQLitePCL.raw/blob/master/LICENSE.TXT
 
-The distributed plugin ZIP contains only the four Localizer assemblies,
-project documentation, and project helper scripts. Consult packages.lock.json
-when reviewing the source build's exact dependency inventory.
+The ZIP contains five Localizer assemblies, public documentation and the offline backup helper.

@@ -1,0 +1,40 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {html,workFixture} from './work_dom_fixture.mjs';
+const checks=[],check=(name,fn)=>{fn();checks.push({name,passed:true});};
+function fixture(){
+ let now=0,version=0,active=0,handler;const calls=[],nodes=new Map();
+ const $=key=>{if(!nodes.has(key)){let value='';nodes.set(key,{open:false,value:'',writes:0,textContent:'',get innerHTML(){return value;},set innerHTML(x){this.writes++;value=x;}});}return nodes.get(key);};
+ const c=vm.createContext({AbortController,Map,Date:{now:()=>now},document:{hidden:false},state:{ready:true},active:'overview',polling:false,pollAbort:null,pollEpoch:0,pageVisible:true,statusRevision:0,statusOwners:new Map(),$: $,name:String,escape:String,labels:{Name:'title',Overview:'overview',Genres:'genres'},recentBatches:JSON.stringify,
+  api:async route=>{calls.push(route);if(handler)return handler(route);return route==='state'?{ready:true,settings:{language:'zh-Hans'},health:{state:'Ready',updatedUtc:now},executionEmptyChecks:now,libraries:[],observationPerformance:{elapsedMs:now}}:{fields:[{field:'Name',translated:version,denominator:2}],issues:[],batches:[],active};}});
+ c.status=(text,error=false,target='#luStatus',owner='operation')=>{c.statusRevision++;c.statusOwners.set(target,owner);$(target).textContent=text;};
+ for(const prefix of ['async function loadState(','async function loadOverview('])vm.runInContext(html.split(/\r?\n/).find(x=>x.startsWith(prefix)),c);
+ vm.runInContext(html.slice(html.indexOf('function invalidatePoll('),html.indexOf('async function start(')),c);
+ return {c,calls,$,tick:ms=>now=ms,change:()=>version++,busy:x=>active=x,setHandler:fn=>handler=fn};
+}
+let f=fixture();await f.c.poll(true);f.tick(2000);await f.c.poll(true);
+check('unchanged idle page backs off to four seconds',()=>{assert.equal(f.c.poll.delay,4000);assert.equal(f.calls.length,4);});
+const writes=f.$('#luCoverage').writes;f.tick(4000);await f.c.poll(true);
+check('scheduled ticks inside backoff send no requests',()=>assert.equal(f.calls.length,4));
+f.tick(6000);await f.c.poll(true);f.tick(14000);await f.c.poll(true);
+check('idle page reaches bounded ten second request interval',()=>assert.equal(f.c.poll.delay,10000));
+check('idle counters health timestamps and profiling do not defeat backoff',()=>assert.equal(f.c.poll.next,24000));
+check('identical overview and library responses do not rebuild markup',()=>{assert.equal(f.$('#luCoverage').writes,writes);assert.equal(f.$('#luBrowseLibrary').writes,1);});
+f.change();f.tick(24000);await f.c.poll(true);
+check('changed response repaints once and restores active interval',()=>{assert.equal(f.c.poll.delay,2000);assert.equal(f.$('#luCoverage').writes,writes+1);});
+f.busy(1);f.tick(26000);await f.c.poll(true);f.tick(28000);await f.c.poll(true);
+check('unchanged active work prevents idle backoff',()=>assert.equal(f.c.poll.delay,2000));
+f.busy(0);f.tick(30000);await f.c.poll(true);f.tick(32000);await f.c.poll(true);f.c.invalidatePoll();await f.c.poll(true);
+check('user operation invalidation permits immediate fresh read',()=>{assert.equal(f.c.poll.delay,2000);assert.equal(f.c.poll.next,34000);});
+const sent=f.calls.length;f.c.document.hidden=true;f.tick(50000);await f.c.poll(true);f.c.document.hidden=false;f.c.pageVisible=false;await f.c.poll(true);
+check('hidden or departed page remains silent despite expired backoff',()=>assert.equal(f.calls.length,sent));
+f=fixture();f.setHandler(()=>{throw new Error('synthetic failure');});await f.c.poll(true);
+check('failed polling uses short retry interval and displays current error',()=>{assert.equal(f.c.poll.delay,2000);assert.equal(f.$('#luStatus').textContent,'synthetic failure');});
+f.setHandler(null);f.tick(2000);await f.c.poll(true);
+check('successful retry clears only its own failure',()=>assert.equal(f.$('#luStatus').textContent,''));
+const w=workFixture();w.setHandler(async()=>[{id:'terminal',field:'Term',state:'completed',step:'verify',updated_utc:'one'}]);await w.c.poll();await w.c.poll();
+check('unchanged terminal work view also backs off',()=>assert.equal(w.c.poll.delay,4000));
+w.setHandler(async()=>[{id:'active',field:'Term',state:'waiting',step:'verify',updated_utc:'one'}]);await w.c.poll();await w.c.poll();
+check('waiting work keeps detail refresh responsive',()=>assert.equal(w.c.poll.delay,2000));
+const result={status:'passed',checks,realModelRequests:0};if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

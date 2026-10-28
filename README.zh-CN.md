@@ -2,54 +2,43 @@
 
 简体中文 | [English](README.md)
 
-用于翻译和管理 Jellyfin 电影标题、完整 NFO 简介与类型的插件。可以先查看和编辑译文，再应用到媒体库，同时保留原文和操作历史，方便管理中文、英文内容。
+为 Jellyfin 翻译和管理电影标题、NFO 简介与分类。保留原文和译文历史，优先复用已有译文，并按统一目标语言显示。
 
-**0.11.0-preview.1 · 预览版 · Jellyfin 12.0.0 · Windows x64**
+**0.12.0-preview.1 · 预览版 · Jellyfin 12.0.0 · Windows x64**
 
 ## 功能
 
-- 将电影标题和完整 NFO 简介翻译为简体中文或英文。
-- 使用云端翻译服务，或通过 LM Studio 使用本地模型。
-- 查看、编辑译文，批量处理影片，并使用已保存的译文切换共享显示语言。
-- 管理类型翻译词典和可选的人名映射。
-- 保留原文与应用历史，在恢复条件仍满足时撤销修改。
-- 管理界面支持中文和英文切换。
+- 一个插件数据库、一套持久队列，统一生成、保存和更新显示。
+- 简体中文/英文目标与双语管理界面，可编辑译文并选用历史版本。
+- 单个公共 HTTPS OpenAI-compatible Chat Completions 连接及模型。
+- 仅补缺译、共享分类词典、人名规则分页与问题定位。
+- 空闲退避、分页查询，刷新时保留阅读位置和未知结果确认。
+- 校验原文、修订、外部修改及元数据保存器；只读 NFO，不写回。
 
 ## 环境要求
 
-- **Windows x64** 上的 Jellyfin Server **12.0.0**，使用管理员账户操作。
-- 电影媒体库；翻译简介需要包含原始简介的本地 NFO。
-- 已配置的翻译服务和模型。
+Jellyfin Server **12.0.0**、Windows x64、管理员权限及公共 HTTPS 兼容 API。其他平台尚未验证。本版不支持本机/内网地址、LM Studio 原生接口或多个服务配置。
 
-不兼容旧版 Jellyfin；其他版本及部署平台尚未验证。
+## 安装与开始
 
-## 快速开始
+1. 从 [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.12.0-preview.1) 下载 ZIP 和 `SHA256SUMS.txt`，先校验文件。
+2. 完整备份并停止 Jellyfin。将旧插件目录移出插件目录，安装 ZIP 中的 `Localizer` 文件夹后重启；不要混装公开版和个人分支 DLL。
+3. 打开 **Metadata Localizer**，创建新版数据库，选择管理的电影库与字段。
+4. 填写 API 地址和 Key → 获取模型列表 → 选择模型 → 保存。获取列表使用当前草稿，无需先保存或预填模型。翻译测试可选，确认执行会消耗一次请求。
+5. 关闭管理库的元数据保存器，核对原文，从小范围开始。空简介正常跳过。
 
-1. 在 [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.11.0-preview.1) 下载插件 ZIP 和 `SHA256SUMS.txt`，安装前核对校验和。
-2. 备份并停止 Jellyfin，将 ZIP 中的 `Localizer` 文件夹放入服务器插件目录。若有旧版插件，先移到插件目录之外再替换。
-3. 启动 Jellyfin，进入 **控制台 → 插件 → Metadata Localizer → 设置**，选择服务、模型和语言。
-4. 先在小型测试库中确认原文，生成并检查译文，再应用到一部影片，并尝试恢复。
+**已提交任务的可用结果会自动显示，影片元数据由所有 Jellyfin 用户共享。** 自动处理初始关闭，开启后观察新增及变化的影片。首次接入已有库只建立基线，历史缺译由“补齐管理范围”明确提交。详见[安装说明](docs/INSTALL.md)。
 
-目录位置、密钥配置和首次使用步骤见[安装说明](docs/INSTALL.md)。当前采用手动安装，暂不提供自动更新源。
+## 旧版用户
 
-## 翻译服务
+本版采用统一架构，数据位于 `data/metadata-localizer-v2`。旧 `data/metadata-localizer` 目录原样保留，不导入旧设置、密钥、译文和任务。旧 Release 与 Git 历史继续保留。切换前保留完整配套备份，新版单独初始化和配置，详见[备份与恢复](docs/BACKUP.md)。
 
-| 服务 | 配置方式 |
-| --- | --- |
-| OpenAI / Groq | 使用预设地址，配置自己的 API 密钥并选择模型。 |
-| OpenAI 兼容云服务 | 自定义 HTTPS 基础地址、模型 ID 和独立密钥，使用 Chat Completions 接口。 |
-| LM Studio | 在运行 Jellyfin 的同一台机器上启动服务并加载模型。 |
+## 连接与隐私
 
-云服务密钥须在运行 Jellyfin 的同一 Windows 账户下保存。翻译质量和模型兼容性取决于所选服务，建议先试译一部影片，再进行批量处理。
+密钥在服务器运行账户下通过 Windows CurrentUser DPAPI 加密并绑定地址，页面不读回。相同地址留空可保留已保存密钥；换地址需要密钥。模型兼容能力因供应商而异，JSON 模式及输出上限可配置。执行生成时会向所选服务发送对应原文及受保护人名上下文。请求结果未知时不会静默重发，需明确接受可能重复计费。
 
-## 使用注意
+## 文档与许可
 
-**标题、简介和类型的修改对所有 Jellyfin 用户生效。** 使用前先备份，应用修改前关闭媒体库的元数据保存器。插件只读取 NFO 作为原文来源，不会重写 NFO 文件。
+[安装](docs/INSTALL.md) · [备份](docs/BACKUP.md) · [隐私](docs/PRIVACY.md) · [开发](docs/DEVELOPMENT.md) · [验证](docs/VALIDATION.md) · [更新记录](CHANGELOG.md)
 
-## 文档
-
-[安装说明](docs/INSTALL.md) · [备份与恢复](docs/BACKUP.md) · [隐私说明](docs/PRIVACY.md) · [开发说明](docs/DEVELOPMENT.md) · [验证记录](docs/VALIDATION.md) · [更新记录](CHANGELOG.md)
-
-## 许可
-
-采用 [GPL-3.0-only](LICENSE)，第三方依赖见 [NOTICE](NOTICE)。本项目为非官方 Jellyfin 插件。
+[GPL-3.0-only](LICENSE)，第三方说明见 [NOTICE](NOTICE)。非 Jellyfin 官方插件。

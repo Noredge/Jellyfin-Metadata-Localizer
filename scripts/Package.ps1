@@ -29,10 +29,10 @@ try {
     }
     if ($references.Count -ne $wanted.Count) { throw 'Incomplete host compile reference inventory.' }
     $assemblies = @()
-    foreach ($name in @('Localizer.Plugin.dll','Localizer.Core.dll','Localizer.Jellyfin.dll','Localizer.Translation.dll')) {
+    foreach ($name in @('Localizer.Plugin.dll','Localizer.Core.dll','Localizer.Jellyfin.dll','Localizer.Translation.dll','Localizer.Unified.dll')) {
         $path = Join-Path $repo "src/Localizer.Plugin/bin/Release/net10.0/$name"
         $version = [Reflection.AssemblyName]::GetAssemblyName($path).Version.ToString()
-        if ($version -ne '0.11.0.0') { throw "Unexpected assembly version for $name" }
+        if ($version -ne '0.12.0.0') { throw "Unexpected assembly version for $name" }
         $assemblies += [ordered]@{ name=$name; version=$version; sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $metadata = [ordered]@{ assemblies=@($assemblies); hostDependencies=@($references | Sort-Object name) } | ConvertTo-Json -Depth 6

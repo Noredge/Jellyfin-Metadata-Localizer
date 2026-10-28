@@ -4,14 +4,17 @@ namespace Localizer.Translation;
 
 internal static class CompatibleChat
 {
-    internal static JsonObject Parameters(int maximum, bool jsonMode)
+    internal static JsonObject Parameters(int maximum, bool jsonMode, string tokenParameter = "max_tokens", string? reasoning = null, bool? store = null)
     {
-        var value = new JsonObject { ["max_tokens"] = maximum };
+        var value = new JsonObject { [tokenParameter] = maximum };
+        if (reasoning is not null) value["reasoning_effort"] = reasoning;
+        if (store is not null) value["store"] = store.Value;
         if (jsonMode) value["response_format"] = new JsonObject { ["type"] = "json_object" };
         return value;
     }
-    internal static JsonObject Body(string model, string prompt, string input, int maximum, bool jsonMode) =>
-        Complete(Parameters(maximum, jsonMode), model, prompt, input);
+    internal static JsonObject Body(string model, string prompt, string input, int maximum, bool jsonMode,
+        string tokenParameter = "max_tokens", string? reasoning = null, bool? store = null) =>
+        Complete(Parameters(maximum, jsonMode, tokenParameter, reasoning, store), model, prompt, input);
     internal static JsonObject Complete(JsonObject parameters, string model, string prompt, string input)
     {
         parameters["model"] = model;

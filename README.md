@@ -2,54 +2,45 @@
 
 [简体中文](README.zh-CN.md) | English
 
-A Jellyfin plugin for translating and managing movie titles, full NFO overviews, and genres. Review translations before applying them, keep the original sources, and manage the library in Chinese or English.
+Translate and manage movie titles, NFO synopses, and genres in Jellyfin. Keep original sources and translation history, reuse saved translations, and follow one shared display language.
 
-**0.11.0-preview.1 · Preview · Jellyfin 12.0.0 · Windows x64**
+**0.12.0-preview.1 · Preview · Jellyfin 12.0.0 · Windows x64**
 
 ## Features
 
-- Translate movie titles and complete NFO synopses into Simplified Chinese or English.
-- Use cloud translation services or a local model through LM Studio.
-- Review and edit translations, process movies in batches, and switch the shared display language using saved translations.
-- Manage genre translations and optional person-name mappings.
-- Keep source and application history, with recovery when the recorded conditions still match.
-- Switch the administration interface between Chinese and English.
+- One plugin database and a durable background queue for generation, saving, and display updates.
+- Simplified Chinese and English targets, bilingual administration, editable translations and history.
+- One public HTTPS OpenAI-compatible Chat Completions connection and model.
+- Missing-only batch fill, shared genre dictionary, optional person-name rules, and actionable issue links.
+- Idle polling backoff, paged lists, and protected reading/confirmation state during refresh.
+- Source, revision, external-edit and metadata-saver checks; NFO files are read, never rewritten.
 
 ## Requirements
 
-- Jellyfin Server **12.0.0** on **Windows x64**, with administrator access.
-- A movie library; overview translation requires a local NFO containing the synopsis.
-- A configured translation service and model.
+Jellyfin Server **12.0.0**, Windows x64, administrator access, and a public HTTPS OpenAI-compatible API. Other hosts and platforms are unvalidated. Local/private endpoints, LM Studio native APIs, and multiple saved service profiles are not supported in this version.
 
-Earlier Jellyfin versions are not supported. Other versions and deployment platforms have not been validated.
+## Install and start
 
-## Quick start
+1. Download the ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.12.0-preview.1). Verify the checksum.
+2. Back up and stop Jellyfin. Move the previous plugin folder outside the plugin directory; install the ZIP's `Localizer` folder and restart. Do not mix public and personal-fork DLLs.
+3. Open **Metadata Localizer**, create the new database, and select managed movie libraries and fields.
+4. Enter the API base and key → get models → select a model → save. Model lookup uses the draft without requiring a prior save or model. The translation test is optional and consumes one request if confirmed.
+5. Disable the managed library's metadata savers, review the sources, and start with a small library. Empty synopses are skipped normally.
 
-1. Download the plugin ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.11.0-preview.1). Verify the checksum before installing.
-2. Back up and stop Jellyfin, then install the ZIP's `Localizer` folder into the server's plugin directory. Move any previous plugin version outside that directory before replacing it.
-3. Restart Jellyfin and open **Dashboard → Plugins → Metadata Localizer → Settings**. Choose your service, model, and languages.
-4. Start with a small test library: confirm the original source, generate and review a translation, then apply it and try restoring it.
+**Available results are automatically displayed for submitted work. Metadata is shared by all Jellyfin users.** Automatic processing starts disabled; enabling it watches new or changed movies. Adding an existing library first establishes a baseline; explicitly use missing-only fill for its backlog. See [Installation](docs/INSTALL.md).
 
-See the [installation guide](docs/INSTALL.md) for directory details, credential setup, and first-run instructions. Installation is manual; there is no automatic update feed yet.
+## Earlier versions
 
-## Translation services
+This is a new implementation based on the unified architecture. It uses `data/metadata-localizer-v2`; the old `data/metadata-localizer` directory stays untouched. Old settings, credentials, translations and jobs are not imported. The old release and Git history remain available. Keep a complete paired backup before switching; initialize and configure this version separately. See [Backup and recovery](docs/BACKUP.md).
 
-| Service | Configuration |
-| --- | --- |
-| OpenAI / Groq | Built-in endpoints; supply your API key and choose a model. |
-| OpenAI-compatible cloud API | Set a custom HTTPS base URL, model ID, and separate API key. Uses Chat Completions. |
-| LM Studio | Run and load a model on the same machine as Jellyfin. |
+## Connection and privacy
 
-Cloud keys must be saved under the Windows account that runs Jellyfin. Translation quality and model compatibility depend on the selected service, so test one movie before starting a batch.
-
-## Before applying changes
-
-**Titles, overviews, and genres are shared by all Jellyfin users.** Back up first and disable the library's metadata savers before applying changes. The plugin reads NFO files as sources and does not rewrite them.
+The server stores the key using Windows CurrentUser DPAPI, bound to the endpoint. A blank key keeps the saved key for the same address; a new address needs a key. The page never reads the key back. Provider/model capabilities vary; JSON mode and output budgets are configurable. Selected original text and protected-name context are sent to the configured service only when generation is requested. Unknown outcomes require explicit acknowledgement before retrying.
 
 ## Documentation
 
-[Installation](docs/INSTALL.md) · [Backup & recovery](docs/BACKUP.md) · [Privacy](docs/PRIVACY.md) · [Development](docs/DEVELOPMENT.md) · [Validation](docs/VALIDATION.md) · [Changelog](CHANGELOG.md)
+[Installation](docs/INSTALL.md) · [Backup](docs/BACKUP.md) · [Privacy](docs/PRIVACY.md) · [Development](docs/DEVELOPMENT.md) · [Validation](docs/VALIDATION.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
-[GPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for third-party dependencies. This is an unofficial Jellyfin plugin.
+[GPL-3.0-only](LICENSE); see [NOTICE](NOTICE). Unofficial Jellyfin plugin.
