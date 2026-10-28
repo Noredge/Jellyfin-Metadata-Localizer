@@ -56,6 +56,15 @@ def verify(path):
                 text = data.decode('utf-8-sig')
                 if re.search(r'[A-Za-z]:[\\/]Users[\\/](?!Public\b|<)', text, re.I):
                     raise ValueError('Private machine path inside archive.')
+        for assembly, logical_name, source in (
+            ('Localizer.Plugin.dll', 'Localizer.Plugin.Web.unified.html', 'src/Localizer.Plugin/Web/unified.html'),
+            ('Localizer.Plugin.dll', 'Localizer.Rules.zh-Hans.json', 'resources/title-rules.zh-Hans.json'),
+            ('Localizer.Plugin.dll', 'Localizer.Rules.en.json', 'resources/title-rules.en.json'),
+            ('Localizer.Core.dll', 'Localizer.Genres.tsv', 'src/Localizer.Core/Genres.tsv'),
+        ):
+            payload = archive.read('Localizer/' + assembly)
+            if logical_name.encode() not in payload or (ROOT / source).read_bytes() not in payload:
+                raise ValueError('Missing or changed embedded resource: ' + logical_name)
         if len(manifest['hostDependencies']) != 7:
             raise ValueError('Host reference inventory is incomplete.')
         if any(not re.fullmatch('[0-9a-f]{64}', x['sha256']) for x in manifest['hostDependencies']):

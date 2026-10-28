@@ -8,4 +8,6 @@ The preview gate contains **650 automated checks**: 623 unified regression check
 
 Actual Jellyfin Web acceptance covered Chinese/English settings at desktop and 360px viewport widths, draft model lookup without preselecting/saving a model, provider order, optional testing, long-text expansion, retained readers and unknown-result confirmation/cancellation. The first setup regression found an unused older initialization message; it was removed and the regression passed again. An initial native harness failure counted its own browser lookup incorrectly; the harness baseline was corrected before all 104 checks passed.
 
+Package inspection also found language prompts being built as satellite resources. They are now embedded in the main plugin assembly. Packaging verifies both logical resource names and exact bytes for both prompts, the UI and genre dictionary; the five-DLL package must pass this gate.
+
 Release evidence records the final commit, exact CI artifact identity, hashes and subsequent artifact startup acceptance. CI evidence is linked from the repository Actions tab and release notes. Third-party models are not individually certified; Linux, Docker, mobile client applications, browser CPU/energy and long-duration large-library load are unvalidated. No automatic old-data migration is claimed.
