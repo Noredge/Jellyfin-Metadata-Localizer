@@ -9,6 +9,10 @@ check('public page includes English setup and backup guidance',()=>{assert(html.
 const plugin=fs.readFileSync(new URL('../src/Localizer.Plugin/Plugin.cs',import.meta.url),'utf8');
 check('public identity retained and personal fork identity excluded',()=>{assert(plugin.includes('12bb696e-b52a-4b98-a4fa-39d32bfca5aa'));assert(!plugin.includes('c12192da'));assert(!plugin.includes('Metadata Localizer Private'));});
 check('shipping prompt resources are general rules',()=>{for(const lang of ['en','zh-Hans']){const rules=JSON.parse(fs.readFileSync(new URL('../resources/title-rules.'+lang+'.json',import.meta.url),'utf8'));assert(rules.version.startsWith('general-title-rules'));assert.equal(rules.rules.length,0);}});
+const errorContext=vm.createContext({ApiClient:{setRequestHeaders:()=>{},getUrl:x=>x},normalize:v=>({error:v.Error}),fetch:async()=>({ok:false,json:async()=>({Error:'person_alias_conflict'})})});
+vm.runInContext(html.split(/\r?\n/).find(x=>x.startsWith('const errors='))+'\n'+html.split(/\r?\n/).find(x=>x.startsWith('async function api(')),errorContext);
+let personError;try{await errorContext.api('people',{});}catch(e){personError=e;}
+check('alias conflict response gives actionable UI error without losing its code',()=>{assert.equal(personError.code,'person_alias_conflict');assert(personError.message.includes('冲突'));assert(personError.message.includes('修正'));});
 const elements=new Map();const get=s=>{if(!elements.has(s))elements.set(s,{value:'',innerHTML:'',textContent:'',hidden:false});return elements.get(s);};
 let legacy=true;const c=vm.createContext({state:null,active:'overview',$:get,name:String,escape:String,api:async()=>({ready:false,legacyDataPresent:legacy,health:{state:'Unavailable'},libraries:[]}),status:()=>{}});
 vm.runInContext(html.split(/\r?\n/).find(x=>x.startsWith('async function loadState(')),c);await c.loadState();

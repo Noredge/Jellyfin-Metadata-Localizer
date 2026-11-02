@@ -45,7 +45,7 @@ public static class TitlePipeline
         prompt += "\n" + rules.Instructions + "\nPreserve every __JML_PERSON_*__ placeholder exactly once, without altering it.";
         var matched = rules.Rules.Where(x => Regex.IsMatch(source.OriginalTitle, x.Pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))).ToArray();
         if (matched.Length > 0) prompt += "\nContextual terminology guidance:\n" + string.Join("\n", matched.Select(x => "- " + x.Instruction));
-        return new(GroqEndpoint, QwenModel, people is null ? "catalog-title-v6-source-language" : "catalog-title-v6-source-language-person-names", rules.Version,
+        return new(GroqEndpoint, QwenModel, people is null ? "catalog-title-v7-name-boundaries" : "catalog-title-v7-name-boundaries-person-names", rules.Version,
             """{"temperature":0.2,"max_completion_tokens":1024,"response_format":{"type":"json_object"},"reasoning_effort":"none"}""",
             JsonSerializer.Serialize(protectedTitle), prompt);
     }
@@ -55,9 +55,9 @@ public static class TitlePipeline
         var supplied = names.ToArray();
         if (supplied.Any(x => string.IsNullOrWhiteSpace(x) || x.Trim() != x || !source.Contains(x, StringComparison.Ordinal)))
             throw new ArgumentException("InvalidProtectedName");
-        var unique = supplied.Distinct(StringComparer.Ordinal).OrderByDescending(x => x.Length).ThenBy(x => x, StringComparer.Ordinal).ToArray();
+        var unique = supplied.Distinct(StringComparer.Ordinal).Where(x => PersonNameMatching.Contains(source, x)).OrderByDescending(x => x.Length).ThenBy(x => x, StringComparer.Ordinal).ToArray();
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal);
-        var masked = unique.Length == 0 ? source : Regex.Replace(source, string.Join("|", unique.Select(Regex.Escape)), match =>
+        var masked = unique.Length == 0 ? source : Regex.Replace(source, string.Join("|", unique.Select(PersonNameMatching.Pattern)), match =>
         {
             var index = mapping.Count; var letters = "";
             do { letters = (char)('A' + index % 26) + letters; index = index / 26 - 1; } while (index >= 0);

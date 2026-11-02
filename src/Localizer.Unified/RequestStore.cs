@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Localizer.Core;
 using Microsoft.Data.Sqlite;
 using static Localizer.Unified.UnifiedDatabase;
 
@@ -8,6 +9,15 @@ namespace Localizer.Unified;
 internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? checkpoint = null)
 {
     private UnifiedDatabase Database => work.Database;
+    // Source IDs include their owner and field. Consent survives prompt, rule, model and epoch changes.
+    private const string UnknownIds = """
+        SELECT r.id FROM request_attempts r JOIN generation_inputs i ON i.id=r.input_id
+        WHERE r.state='unknown' AND r.uncertainty_acknowledged=0 AND i.source_id=$source AND i.language=$language
+        """;
+    internal static bool HasUnknown(SqliteConnection db, SqliteTransaction? tx, UnifiedWork w) =>
+        Scalar<long>(db, tx, "SELECT EXISTS(" + UnknownIds + ")", ("$source", w.SourceId), ("$language", w.Language)) == 1;
+    internal static void AcknowledgeUnknown(SqliteConnection db, SqliteTransaction tx, UnifiedWork w) =>
+        Execute(db, tx, "UPDATE request_attempts SET uncertainty_acknowledged=1 WHERE id IN(" + UnknownIds + ")", ("$source", w.SourceId), ("$language", w.Language));
     internal RequestAttempt? Prepare(UnifiedWork expected, string promptVersion, string[]? protectedNames)
     {
         return Database.Write<RequestAttempt?>((db, tx) =>
@@ -19,6 +29,8 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
                 else work.State(db, tx, w.Id, "expired", w.Step, completion: "intent_expired");
                 return null;
             }
+            if (HasUnknown(db, tx, w))
+            { work.State(db, tx, w.Id, "paused", "request", issue: "translation", error: "input_outcome_unknown"); return null; }
             var settings = SettingsStore.Read(db, tx); var connection = SettingsStore.Connection(db, tx, settings.ConnectionId);
             if (connection is null) { work.State(db, tx, w.Id, "paused", "request", issue: "translation", error: "connection_required"); return null; }
             using (var blocked = Command(db, tx, """
@@ -44,15 +56,20 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
                 }
             var text = Scalar<string>(db, tx, "SELECT content FROM source_versions WHERE id=$s", ("$s", w.SourceId));
             var names = new List<object>();
+            var owners = new Dictionary<string, string>(StringComparer.Ordinal);
             using (var cmd = Command(db, tx, "SELECT original,zh_name,en_name,aliases_json,revision FROM person_name_rules ORDER BY original"))
             using (var r = cmd.ExecuteReader()) while (r.Read())
             {
                 var aliases = JsonSerializer.Deserialize<string[]>(r.GetString(3))!;
-                if (!text.Contains(r.GetString(0), StringComparison.Ordinal) && !aliases.Any(a => text.Contains(a, StringComparison.Ordinal))) continue;
+                var original = r.GetString(0);
+                if (!PersonNameMatching.Contains(text, original) && !aliases.Any(a => PersonNameMatching.Contains(text, a))) continue;
+                foreach (var name in aliases.Prepend(original).Distinct(StringComparer.Ordinal))
+                    if (!owners.TryAdd(name, original) && owners[name] != original)
+                    { r.Close(); work.State(db, tx, w.Id, "failed", "source", issue: "translation", error: "person_alias_conflict"); return null; }
                 names.Add(new { original = r.GetString(0), replacement = r.IsDBNull(w.Language == "en" ? 2 : 1) ? null : r.GetString(w.Language == "en" ? 2 : 1), aliases, revision = r.GetInt64(4) });
             }
             var namesJson = JsonSerializer.Serialize(names);
-            var contextJson = JsonSerializer.Serialize(new { protected_names = (protectedNames ?? []).Where(n => !string.IsNullOrWhiteSpace(n) && text.Contains(n, StringComparison.Ordinal)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal) });
+            var contextJson = JsonSerializer.Serialize(new { protected_names = (protectedNames ?? []).Where(n => !string.IsNullOrWhiteSpace(n) && PersonNameMatching.Contains(text, n)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal) });
             var fp = Hash(JsonSerializer.Serialize(new[] { w.SourceId, w.Language, promptVersion, namesJson, contextJson }));
             var inputId = Scalar<string>(db, tx, "SELECT id FROM generation_inputs WHERE fingerprint=$fp", ("$fp", fp));
             if (inputId is null)

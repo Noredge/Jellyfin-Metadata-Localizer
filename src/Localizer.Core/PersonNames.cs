@@ -2,6 +2,33 @@ using System.Text.Json;
 
 namespace Localizer.Core;
 
+public sealed class PersonAliasConflictException() : ArgumentException("PersonAliasConflict");
+
+/// <summary>Literal name matching with Latin word boundaries; CJK names may adjoin CJK text.</summary>
+public static class PersonNameMatching
+{
+    private const string Word = @"A-Za-z\p{Nd}\p{M}_\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F\u1E00-\u1EFF\u2C60-\u2C7F\uA720-\uA7FF\uAB30-\uAB6F";
+    private static bool WordCharacter(char c) => char.IsDigit(c) || c == '_' || char.IsAsciiLetter(c)
+        || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.NonSpacingMark or System.Globalization.UnicodeCategory.SpacingCombiningMark or System.Globalization.UnicodeCategory.EnclosingMark
+        || c is >= '\u00C0' and <= '\u00D6' or >= '\u00D8' and <= '\u00F6' or >= '\u00F8' and <= '\u024F'
+            or >= '\u1E00' and <= '\u1EFF' or >= '\u2C60' and <= '\u2C7F' or >= '\uA720' and <= '\uA7FF' or >= '\uAB30' and <= '\uAB6F';
+    public static string Pattern(string name) => (WordCharacter(name[0]) ? "(?<![" + Word + "])" : "")
+        + System.Text.RegularExpressions.Regex.Escape(name) + (WordCharacter(name[^1]) ? "(?![" + Word + "])" : "");
+    public static bool Contains(string text, string name)
+    {
+        if (name.Length == 0) return false;
+        var start = 0;
+        while (start <= text.Length - name.Length)
+        {
+            var at = text.IndexOf(name, start, StringComparison.Ordinal); if (at < 0) return false;
+            if ((!WordCharacter(name[0]) || at == 0 || !WordCharacter(text[at - 1]))
+                && (!WordCharacter(name[^1]) || at + name.Length == text.Length || !WordCharacter(text[at + name.Length]))) return true;
+            start = at + 1;
+        }
+        return false;
+    }
+}
+
 public sealed record PersonNameEntry(string Id, string OriginalName, string[] Aliases, string? ChineseName = null, string? EnglishName = null)
 {
     public string Display(TargetLanguage language) => (language == TargetLanguage.SimplifiedChinese ? ChineseName : EnglishName) is { Length: > 0 } value ? value : OriginalName;

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.2
+
+- Keep unknown-outcome consent bound to the source and target language across prompt, model, person-rule and epoch changes. An indexed lookup and explicit acknowledgement preserve all earlier request evidence.
+- Reject cross-person original/alias conflicts transactionally, and block ambiguous legacy rules before sending or applying a cached person mapping. No stored rules or translations are silently rewritten.
+- Share Latin word-boundary matching across protection, context selection and cached rendering, including accented/combining characters; retain CJK name behavior. Version changed input preparation while keeping saved translations reusable.
+- Correct installation and unified-upgrade guidance; use the package manifest as the version authority.
+- Retain the plugin identity, schema 1, data directory, settings, credentials and existing history. Validation uses only synthetic provider responses.
+
 ## 1.0.0-rc.1
 
 - Require the exact supported database definition for offline backup and restore, matching runtime startup. Adoption shares the same compatibility check.

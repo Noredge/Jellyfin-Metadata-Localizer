@@ -95,12 +95,23 @@ foreach (var field in new[] { "Name", "Overview", "Term" })
         && !prompt.Contains("supplied Japanese", StringComparison.Ordinal) && !prompt.Contains("Japanese-style calques", StringComparison.Ordinal)
         && (field == "Term" || reply.Text == "爱丽丝 returns home."));
 }
-Check("all changed prompts have a new request fingerprint", transport.PromptVersion("Name", "en").StartsWith("unified-title-v2-source-language/", StringComparison.Ordinal)
-    && transport.PromptVersion("Overview", "en") == "unified/overview-full-v3-source-language"
+Check("all changed prompts have a new request fingerprint", transport.PromptVersion("Name", "en").StartsWith("unified-title-v3-name-boundaries/", StringComparison.Ordinal)
+    && transport.PromptVersion("Overview", "en") == "unified/overview-full-v4-name-boundaries"
     && transport.PromptVersion("Term", "en") == "unified/genre-dictionary-v3-source-language");
 var callsBeforeStalePrompt = calls;
 reply = await transport.GenerateAsync(Input("Name") with { PromptVersion = "unified-title-v1/rules-v1" }, connection, () => marked++, CancellationToken.None);
 Check("stale frozen prompt is rejected without sending", reply.NotSent && reply.Error == "configuration" && calls == callsBeforeStalePrompt);
+foreach (var field in new[] { "Name", "Overview" })
+{
+    mode = "validation"; validationContent = JsonSerializer.Serialize(new Dictionary<string,string> { [field == "Name" ? "title" : "overview"] = "周年纪念" });
+    var ordinary = Input(field) with { Text = "The Anniversary in the Air", NamesJson = "[{\"original\":\"Ann\",\"replacement\":\"安\",\"aliases\":[],\"revision\":1},{\"original\":\"Ai\",\"replacement\":\"爱\",\"aliases\":[],\"revision\":1}]", ContextJson = "{\"protected_names\":[\"Ann\",\"Ai\"]}" };
+    reply = await transport.GenerateAsync(ordinary, connection, () => marked++, CancellationToken.None);
+    using var request = JsonDocument.Parse(body!);
+    Check("ordinary Latin words remain intact in provider payload: " + field, reply.Error is null && reply.Text == "周年纪念" && request.RootElement.GetProperty("messages")[1].GetProperty("content").GetString() == ordinary.Text);
+}
+var callsBeforeConflict = calls; var loadsBeforeConflict = credentialLoads;
+reply = await transport.GenerateAsync(Input("Name") with { Text = "Bob returns", NamesJson = "[{\"original\":\"Alpha\",\"replacement\":\"甲\",\"aliases\":[\"Bob\"]},{\"original\":\"Bob\",\"replacement\":\"乙\",\"aliases\":[]}]", ContextJson = "{}" }, connection, () => marked++, CancellationToken.None);
+Check("ambiguous frozen people fail before credential loading or sending", reply.NotSent && reply.Error == "person_alias_conflict" && calls == callsBeforeConflict && credentialLoads == loadsBeforeConflict);
 mode = "term"; reply = await transport.GenerateAsync(Input("Term"), connection, () => marked++, CancellationToken.None);
 Check("one shared dictionary term validates correlation id and requested language", reply.Text == "奇幻" && reply.Error is null);
 mode = "429"; reply = await transport.GenerateAsync(Input("Name"), connection, () => marked++, CancellationToken.None);

@@ -1,5 +1,13 @@
 # Validation
 
+## Release candidate: 1.0.0-rc.2
+
+The automated gate contains 817 checks. Added executor regressions preserve unknown-outcome consent across restart, prompt/model/person changes and a return to the original target language. Replacement media and shared-term tasks without their own attempt cannot bypass acknowledgement; explicit consent permits one new send while preserving the original evidence. Other fields and languages remain independent.
+
+Person-rule tests cover transactional original/alias conflicts, unchanged rejected edits, explicit alias reassignment, legacy ambiguity before sending, cached-render safeguards and ambiguous historical display names. Existing records are retained rather than rewritten. Matching checks cover ordinary Latin words, accented/combining characters, punctuation and CJK adjacency; injected HTTP tests verify the actual title/synopsis payload. The UI error test checks actionable conflict feedback.
+
+Schema 1, its definition hash, the public identity and data directory remain unchanged. A small additive partial index supports the consent lookup. Full-data startup and paired rollback acceptance separately verify preserved rows, local rules, encrypted credentials and host metadata. All provider responses used by validation are synthetic; real-provider calls and a 24-48 hour candidate soak remain outside this gate.
+
 ## Release candidate: 1.0.0-rc.1
 
 The automated gate contains 776 checks. It adds correctly hashed archives with missing, empty or unsupported database definitions; backup/restore must reject them without publishing a destination. The supported hash is checked against the runtime schema resource. Path checks cover Windows console aliases, superscript COM/LPT devices, invalid filename characters and valid Unicode names without opening any device.

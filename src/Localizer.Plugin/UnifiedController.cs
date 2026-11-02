@@ -42,6 +42,7 @@ public sealed class UnifiedController(UnifiedRuntime runtime) : ControllerBase
         catch (HttpRequestException) { return StatusCode(502, new { Error = "model_catalog_unavailable" }); }
         catch (KeyNotFoundException) { return NotFound(new { Error = "item_unavailable" }); }
         catch (ConnectionParameterException error) { return BadRequest(new { Error = "invalid_connection_parameter", error.Parameter }); }
+        catch (Localizer.Core.PersonAliasConflictException) { return Conflict(new { Error = "person_alias_conflict" }); }
         catch (ArgumentException) { return BadRequest(new { Error = "invalid_request" }); }
         catch (JsonException) { return BadRequest(new { Error = "invalid_request" }); }
         catch (InvalidOperationException error) when (error.Message is "RevisionConflict" or "SubmissionConflict" or "PreviewExpired" or "UnknownOutcomeConsentRequired" or "RetryIntentExpired")

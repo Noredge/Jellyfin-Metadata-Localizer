@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Localizer.Core;
 using static Localizer.Unified.UnifiedDatabase;
 
 namespace Localizer.Unified;
@@ -110,12 +111,21 @@ public sealed class ConfigurationStore(UnifiedDatabase database)
     }
     public PersonRule SavePerson(string id, long expectedRevision, string original, string? chinese, string? english, string[] aliases)
     {
-        if (!Guid.TryParseExact(id, "N", out _) || string.IsNullOrWhiteSpace(original) || original.Length > 200 || aliases.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 200)
-            || chinese is not null && (string.IsNullOrWhiteSpace(chinese) || chinese.Length > 200) || english is not null && (string.IsNullOrWhiteSpace(english) || english.Length > 200)) throw new ArgumentException("InvalidPersonRule");
+        if (!Guid.TryParseExact(id, "N", out _) || aliases is null || aliases.Length > 50) throw new ArgumentException("InvalidPersonRule");
+        PersonNameSnapshot.ValidateName(original);
+        if (chinese is not null) PersonNameSnapshot.ValidateName(chinese);
+        if (english is not null) PersonNameSnapshot.ValidateName(english);
+        foreach (var alias in aliases) PersonNameSnapshot.ValidateName(alias);
         return database.Write((db, tx) =>
         {
             var revision = Scalar<long>(db, tx, "SELECT revision FROM person_name_rules WHERE id=$id", ("$id", id)); if (revision != expectedRevision) throw new InvalidOperationException("RevisionConflict");
-            var next = revision + 1; var uniqueAliases = aliases.Distinct(StringComparer.Ordinal).ToArray();
+            var next = revision + 1; var uniqueAliases = aliases.Where(x => x != original).Distinct(StringComparer.Ordinal).ToArray();
+            var names = JsonSerializer.Serialize(uniqueAliases.Prepend(original));
+            if (Scalar<long>(db, tx, """
+                SELECT EXISTS(SELECT 1 FROM person_name_rules p WHERE p.id<>$id AND (
+                  p.original IN(SELECT value FROM json_each($names)) OR EXISTS(
+                    SELECT 1 FROM json_each(p.aliases_json) a JOIN json_each($names) n ON n.value=a.value)))
+                """, ("$id", id), ("$names", names)) == 1) throw new PersonAliasConflictException();
             Execute(db, tx, "INSERT INTO person_name_rules VALUES($id,$o,$z,$e,$a,$r,'{}') ON CONFLICT(id) DO UPDATE SET original=excluded.original,zh_name=excluded.zh_name,en_name=excluded.en_name,aliases_json=excluded.aliases_json,revision=excluded.revision",
                 ("$id", id), ("$o", original), ("$z", chinese), ("$e", english), ("$a", JsonSerializer.Serialize(uniqueAliases)), ("$r", next));
             return new PersonRule(id, original, chinese, english, uniqueAliases, next);

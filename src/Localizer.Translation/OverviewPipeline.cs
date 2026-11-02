@@ -11,7 +11,7 @@ public sealed record OverviewTranslationOutput(string? Text, string? Error,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string[]? Warnings = null);
 public static class OverviewPipeline
 {
-    public const string Version = "overview-full-v3-source-language";
+    public const string Version = "overview-full-v4-name-boundaries";
     public static OverviewTranslationInput Prepare(string source, TargetLanguage language, IEnumerable<string> names)
     {
         MetadataText.ValidateOverview(source);

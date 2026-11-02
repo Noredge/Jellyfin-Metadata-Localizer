@@ -63,6 +63,7 @@ public sealed class UnifiedDatabase
               WHERE media_id IS NOT NULL
             """);
         Execute(db, tx, "CREATE INDEX IF NOT EXISTS source_owner ON source_versions(owner_id)");
+        Execute(db, tx, "CREATE INDEX IF NOT EXISTS requests_unacknowledged ON request_attempts(input_id) WHERE state='unknown' AND uncertainty_acknowledged=0");
         tx.Commit();
         Execute(db, null, "PRAGMA journal_mode=WAL");
         // Reopening a store may have installed an additive index. Retire old cached schemas.

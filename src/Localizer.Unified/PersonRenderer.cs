@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
+using Localizer.Core;
 using static Localizer.Unified.UnifiedDatabase;
 
 namespace Localizer.Unified;
@@ -18,11 +19,18 @@ internal static class PersonRenderer
         using (var r = cmd.ExecuteReader()) while (r.Read())
         {
             var aliases = JsonSerializer.Deserialize<string[]>(r.GetString(3))!; var name = r.GetString(0);
-            if (source.Contains(name, StringComparison.Ordinal) || aliases.Any(a => source.Contains(a, StringComparison.Ordinal))) current[name] = (r.IsDBNull(language == "en" ? 2 : 1) ? name : r.GetString(language == "en" ? 2 : 1), aliases);
+            if (PersonNameMatching.Contains(source, name) || aliases.Any(a => PersonNameMatching.Contains(source, a))) current[name] = (r.IsDBNull(language == "en" ? 2 : 1) ? name : r.GetString(language == "en" ? 2 : 1), aliases);
         }
         var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (original, rule) in current)
-        { replacements.TryAdd(original, rule.Value); foreach (var alias in rule.Aliases) replacements.TryAdd(alias, rule.Value); }
+        {
+            foreach (var name in rule.Aliases.Prepend(original).Distinct(StringComparer.Ordinal))
+            {
+                if (!owners.TryAdd(name, original) && owners[name] != original) throw new PersonAliasConflictException();
+                replacements.TryAdd(name, rule.Value);
+            }
+        }
         if (input is not null)
         {
             using var snapshot = JsonDocument.Parse(input);
@@ -30,11 +38,14 @@ internal static class PersonRenderer
             {
                 var original = item.GetProperty("original").GetString()!; var old = item.GetProperty("replacement");
                 if (old.ValueKind == JsonValueKind.String && old.GetString() is { Length: > 0 } value)
-                    replacements.TryAdd(value, current.TryGetValue(original, out var rule) ? rule.Value : original);
+                {
+                    var desired = current.TryGetValue(original, out var rule) ? rule.Value : original;
+                    if (!replacements.TryAdd(value, desired) && replacements[value] != desired && PersonNameMatching.Contains(text, value))
+                        throw new PersonAliasConflictException();
+                }
             }
         }
-        var tokens = replacements.Where(x => x.Key != x.Value && text.Contains(x.Key, StringComparison.Ordinal)).OrderByDescending(x => x.Key.Length).Select(x =>
-            (char.IsAsciiLetterOrDigit(x.Key[0]) ? "(?<![A-Za-z0-9_])" : "") + Regex.Escape(x.Key) + (char.IsAsciiLetterOrDigit(x.Key[^1]) ? "(?![A-Za-z0-9_])" : "")).ToArray();
+        var tokens = replacements.Where(x => x.Key != x.Value && PersonNameMatching.Contains(text, x.Key)).OrderByDescending(x => x.Key.Length).Select(x => PersonNameMatching.Pattern(x.Key)).ToArray();
         return tokens.Length == 0 ? text : Regex.Replace(text, string.Join('|', tokens), match => replacements[match.Value], RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
     }
 }

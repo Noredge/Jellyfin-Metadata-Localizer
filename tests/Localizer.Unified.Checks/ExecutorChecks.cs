@@ -62,6 +62,7 @@ internal static class ExecutorChecks
             await Private22Checks.Run(root, Check);
             PublicReleaseChecks.Run(root, Check);
             LocalRuleChecks.Run(root, Check);
+            await Rc2Checks.Run(root, Check);
             File.WriteAllText(Path.Combine(root, "executor-checks.json"), JsonSerializer.Serialize(new { status = "passed", checks, realModelRequests = 0, productionHostWrites = 0 }, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception error)

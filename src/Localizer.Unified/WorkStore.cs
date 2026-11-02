@@ -330,10 +330,10 @@ public sealed class WorkStore(UnifiedDatabase database, Func<DateTimeOffset>? ut
             """, ("$id", id), ("$kind", w.TargetKind), ("$m", w.MediaId), ("$t", w.TermId), ("$f", w.Field), ("$s", w.SourceId),
             ("$sr", w.SourceRevision), ("$cr", w.ControlRevision), ("$rr", w.RenderRevision), ("$l", w.Language), ("$e", w.TargetEpoch), ("$g", w.GenerationKey));
         if (replacement is not null) return replacement;
-        if (Scalar<long>(db, tx, "SELECT COUNT(*) FROM request_attempts WHERE (work_id=$w OR input_id=$i) AND state='unknown' AND uncertainty_acknowledged=0", ("$w", id), ("$i", w.InputId)) > 0)
+        if (RequestStore.HasUnknown(db, tx, w))
         {
             if (!acceptUnknown) throw new InvalidOperationException("UnknownOutcomeConsentRequired");
-            Execute(db, tx, "UPDATE request_attempts SET uncertainty_acknowledged=1 WHERE (work_id=$w OR input_id=$i) AND state='unknown' AND uncertainty_acknowledged=0", ("$w", id), ("$i", w.InputId));
+            RequestStore.AcknowledgeUnknown(db, tx, w);
         }
         Execute(db, tx, "DELETE FROM connection_blocks WHERE connection_id IN(SELECT connection_id FROM request_attempts WHERE work_id=$w)", ("$w", id));
         State(db, tx, id, "queued", w.TranslationId is not null ? "display" : "source");
@@ -409,7 +409,7 @@ public sealed class WorkStore(UnifiedDatabase database, Func<DateTimeOffset>? ut
                     JOIN batch_items current ON current.batch_id=peer.batch_id AND current.work_id=$p JOIN batches b ON b.id=current.batch_id
                     WHERE d.child_id=$c AND d.parent_id<>$p AND b.kind='fill' AND b.cancelled=0 AND current.active=1
                     """, ("$p", parent.Id), ("$c", child)) == 0
-                && Scalar<long>(db, tx, "SELECT COUNT(*) FROM request_attempts WHERE (work_id=$w OR input_id=$i) AND state='unknown' AND uncertainty_acknowledged=0", ("$w", child), ("$i", previous.InputId)) == 0)
+                && !RequestStore.HasUnknown(db, tx, previous))
                 Retry(db, tx, child, acceptUnknown: false);
             children.Add(child);
         }

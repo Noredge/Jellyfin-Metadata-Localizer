@@ -58,6 +58,8 @@ public sealed class UnifiedExecutor : IDisposable
             if (w is not null && work.Find(w.Id)?.State == "running") work.SetState(w.Id, "queued", w.Step);
             throw;
         }
+        catch (Localizer.Core.PersonAliasConflictException) when (w is not null)
+        { work.SetState(w.Id, "failed", w.Step, issue: "translation", error: "person_alias_conflict"); return true; }
         catch (Exception error)
         {
             var failure = ExecutionDiagnostic.Capture(currentStage, w?.Id ?? interrupted?.Id, error);

@@ -22,7 +22,7 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
     }
     public string PromptVersion(string field, string language) => field switch
     {
-        "Name" => "unified-title-v2-source-language/" + rules(language).Version,
+        "Name" => "unified-title-v3-name-boundaries/" + rules(language).Version,
         "Overview" => "unified/" + OverviewPipeline.Version,
         "Term" => "unified/" + GenreTranslationPipeline.Version,
         _ => throw new ArgumentException("InvalidGenerationField")
@@ -71,16 +71,20 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
             if (tokenParameter is not ("max_tokens" or "max_completion_tokens") || Maximum(1024) is < 64 or > 32768 || OverviewMaximum() is < 64 or > 32768
                 || reasoning is not (null or "none" or "minimal" or "low" or "medium" or "high")) return Fail("invalid_parameters", "configuration");
             var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
+            var owners = new Dictionary<string, string>(StringComparer.Ordinal);
             using (var names = JsonDocument.Parse(input.NamesJson)) foreach (var name in names.RootElement.EnumerateArray())
             {
                 var original = name.GetProperty("original").GetString()!;
                 var translated = name.GetProperty("replacement").ValueKind == JsonValueKind.String ? name.GetProperty("replacement").GetString()! : original;
-                replacements.TryAdd(original, translated);
-                foreach (var alias in name.GetProperty("aliases").EnumerateArray()) replacements.TryAdd(alias.GetString()!, translated);
+                foreach (var alias in name.GetProperty("aliases").EnumerateArray().Select(x => x.GetString()!).Prepend(original).Distinct(StringComparer.Ordinal))
+                {
+                    if (!owners.TryAdd(alias, original) && owners[alias] != original) throw new PersonAliasConflictException();
+                    replacements.TryAdd(alias, translated);
+                }
             }
             using (var context = JsonDocument.Parse(input.ContextJson)) if (context.RootElement.TryGetProperty("protected_names", out var names))
                 foreach (var name in names.EnumerateArray()) replacements.TryAdd(name.GetString()!, name.GetString()!);
-            var matching = replacements.Keys.Where(x => input.Text.Contains(x, StringComparison.Ordinal)).ToArray();
+            var matching = replacements.Keys.Where(x => PersonNameMatching.Contains(input.Text, x)).ToArray();
             ProtectedTitle Decorate(ProtectedTitle protection) => protection with
             {
                 DisplayNames = protection.Mapping.ToDictionary(x => x.Key, x => replacements.GetValueOrDefault(x.Value, x.Value)),
@@ -162,6 +166,7 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
                 validation is null ? null : JsonSerializer.SerializeToElement(validation), outputLimit),
                 Usage: new(provider.PromptTokens, provider.CompletionTokens, provider.TotalTokens));
         }
+        catch (PersonAliasConflictException) { return Fail("person_alias_conflict", "person_alias_conflict"); }
         catch (ExecutionSupersededException) { throw; }
         catch (SourceTemporarilyUnavailableException) { throw; }
         catch (OperationCanceledException) { throw; }

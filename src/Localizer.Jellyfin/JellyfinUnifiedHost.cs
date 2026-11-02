@@ -238,7 +238,7 @@ public sealed class JellyfinUnifiedHost(ILibraryManager library, IApplicationHos
             }
         }
         var names = People(movie, scope).Where(x => !string.IsNullOrWhiteSpace(x)
-            && original?.Contains(x, StringComparison.Ordinal) == true).Distinct(StringComparer.Ordinal).ToArray();
+            && original is not null && PersonNameMatching.Contains(original, x)).Distinct(StringComparer.Ordinal).ToArray();
         return (movie, new(key, movie.Path, field, error is null ? original : null, display, prefix, JsonSerializer.Serialize(proof),
             Writable: displayError is null, SourceError: error, DisplayError: displayError, PersonNames: names));
     }
