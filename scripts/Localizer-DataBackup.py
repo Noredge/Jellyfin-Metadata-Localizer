@@ -1,4 +1,4 @@
-"""Offline backup/restore for Metadata Localizer 0.12 unified data. Never overwrites a destination."""
+"""Offline backup/restore for Metadata Localizer unified data. Never overwrites a destination."""
 import argparse
 from contextlib import closing
 import hashlib
@@ -14,6 +14,9 @@ import zipfile
 
 MAX_BYTES = 1024 * 1024 * 1024
 MAX_FILES = 10000
+SCHEMA_HASH = '2bc26d0cefd06e9b29bfbd38a09bb2282b7bf6e7f1c347bdef1872ccb74ffe8c'
+WINDOWS_DEVICES = {'CON', 'PRN', 'AUX', 'NUL', 'CONIN$', 'CONOUT$',
+                   *['COM'+i for i in '123456789¹²³'], *['LPT'+i for i in '123456789¹²³']}
 
 
 def sha(path):
@@ -24,8 +27,8 @@ def sha(path):
 def safe_name(name):
     parts = PurePosixPath(name).parts
     if not parts or name != '/'.join(parts) or name.startswith('/') or '\\' in name or ':' in name or any(
-        p in ('.', '..') or p.endswith(('.', ' ')) or any(ord(c) < 32 for c in p)
-        or p.split('.')[0].upper() in {'CON', 'PRN', 'AUX', 'NUL', *['COM'+str(i) for i in range(1, 10)], *['LPT'+str(i) for i in range(1, 10)]} for p in parts):
+        p in ('.', '..') or p.endswith(('.', ' ')) or any(ord(c) < 32 or c in '*?"<>|' for c in p)
+        or p.split('.')[0].rstrip(' ').upper() in WINDOWS_DEVICES for p in parts):
         raise ValueError('Unsafe archive path.')
     return name
 
@@ -75,8 +78,11 @@ def check_database(root):
                 raise ValueError('Expected unified Metadata Localizer schema 1.')
             if db.execute('pragma integrity_check').fetchall() != [('ok',)] or db.execute('pragma foreign_key_check').fetchall():
                 raise ValueError('Database integrity check failed.')
-            if not db.execute("select value from runtime_state where key='schema_definition'").fetchone():
+            definition = db.execute("select value from runtime_state where key='schema_definition'").fetchone()
+            if definition is None:
                 raise ValueError('Missing schema definition.')
+            if definition[0] != SCHEMA_HASH:
+                raise ValueError('Unsupported unified schema definition.')
 
 
 def backup(source, archive, *, server_stopped=False):

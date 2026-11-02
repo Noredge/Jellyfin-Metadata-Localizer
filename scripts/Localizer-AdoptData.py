@@ -13,7 +13,7 @@ import uuid
 spec = importlib.util.spec_from_file_location('localizer_backup', Path(__file__).with_name('Localizer-DataBackup.py'))
 backup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(backup)
-SCHEMA_HASH = '2bc26d0cefd06e9b29bfbd38a09bb2282b7bf6e7f1c347bdef1872ccb74ffe8c'
+SCHEMA_HASH = backup.SCHEMA_HASH
 MAX_RULE_BYTES = 1024 * 1024
 
 
@@ -57,8 +57,6 @@ def inspect(source, server_id):
             if p.exists():
                 shutil.copyfile(p, copy / p.name)
         with closing(sqlite3.connect((copy / 'metadata-localizer.db').as_uri() + '?mode=ro', uri=True)) as db:
-            if db.execute("select value from runtime_state where key='schema_definition'").fetchone()[0] != SCHEMA_HASH:
-                raise ValueError('Unsupported unified schema definition.')
             if any(uuid.UUID(row[0]).hex != expected for row in db.execute('select distinct server_id from media_items')):
                 raise ValueError('Media belongs to a different Jellyfin server.')
             unfinished = db.execute("select count(*) from work_items where state in ('queued','running','waiting','paused')").fetchone()[0]

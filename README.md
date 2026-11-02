@@ -4,11 +4,12 @@
 
 Translate and manage movie titles, NFO synopses, and genres in Jellyfin. Keep original sources and translation history, reuse saved translations, and follow one shared display language.
 
-**0.12.0-preview.2 · Development (not released) · Jellyfin 12.0.0 · Windows x64**
+**1.0.0-rc.1 · Pre-release · Jellyfin 12.0.0 · Windows x64**
 
 ## Features
 
 - One plugin database and a durable background queue for generation, saving, and display updates.
+- Source-language-aware prompts, including mixed-language input; actual translation quality depends on the selected provider/model.
 - Simplified Chinese and English targets, bilingual administration, editable translations and history.
 - One public HTTPS OpenAI-compatible Chat Completions connection and model.
 - Missing-only batch fill, shared genre dictionary, optional person-name rules, and actionable issue links.

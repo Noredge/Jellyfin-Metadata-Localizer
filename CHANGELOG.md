@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.12.0-preview.2 — Unreleased, unified maintenance
+## 1.0.0-rc.1
+
+- Require the exact supported database definition for offline backup and restore, matching runtime startup. Adoption shares the same compatibility check.
+- Reject Windows console aliases, superscript device names and invalid filename characters before archive extraction.
+- Translate titles, synopses and dictionary labels from the actual source language, including mixed-language text; version changed prompts without regenerating saved translations.
+- Keep the public plugin identity and unified schema/data directory. Existing unified preview installations retain settings, encrypted credentials, local rules and history.
+- Candidate release for Jellyfin 12.0.0 / Windows x64; validation uses synthetic provider responses, not real translation requests.
+
+## 0.12.0-preview.2 — Development baseline (not released)
 
 - Use one portable package for general defaults and optional installation-local title/genre rule packs.
 - Add explicit offline adoption of an idle compatible schema-1 store, preserving original data and credentials with verified backup/restore and server-ownership checks.

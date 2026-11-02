@@ -79,6 +79,28 @@ validationContent = "{\"overview\":\"cut"; finishReason = "length";
 reply = await transport.GenerateAsync(Input("Overview"), small, () => marked++, CancellationToken.None);
 Check("truncation records finish reason and exact output limit", reply.Error == "output_budget" && reply.Diagnostics?.FinishReason == "length" && reply.Diagnostics.OutputTokenLimit == 4096);
 finishReason = "stop";
+foreach (var source in new[] { "Alice returns home.", "Alice回到家中。", "Alice est de retour.", "Alice returns 帰宅한다。" })
+foreach (var language in new[] { "zh-Hans", "en" })
+foreach (var field in new[] { "Name", "Overview", "Term" })
+{
+    validationContent = field == "Term"
+        ? JsonSerializer.Serialize(new { entries = new[] { new { id = "G0001", translations = new Dictionary<string,string> { [language] = language == "en" ? "Drama" : "剧情" } } } })
+        : JsonSerializer.Serialize(new Dictionary<string,string> { [field == "Name" ? "title" : "overview"] = "__JML_PERSON_A__ returns home." });
+    var input = Input(field) with { Text = source, Language = language, PromptVersion = transport.PromptVersion(field, language) };
+    reply = await transport.GenerateAsync(input, connection, () => marked++, CancellationToken.None);
+    using var request = JsonDocument.Parse(body!);
+    var prompt = request.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
+    Check($"source-language request and parsing preserve non-Japanese content: {field}/{language}/{source}",
+        reply.Error is null && prompt.Contains("language actually supplied", StringComparison.Ordinal)
+        && !prompt.Contains("supplied Japanese", StringComparison.Ordinal) && !prompt.Contains("Japanese-style calques", StringComparison.Ordinal)
+        && (field == "Term" || reply.Text == "爱丽丝 returns home."));
+}
+Check("all changed prompts have a new request fingerprint", transport.PromptVersion("Name", "en").StartsWith("unified-title-v2-source-language/", StringComparison.Ordinal)
+    && transport.PromptVersion("Overview", "en") == "unified/overview-full-v3-source-language"
+    && transport.PromptVersion("Term", "en") == "unified/genre-dictionary-v3-source-language");
+var callsBeforeStalePrompt = calls;
+reply = await transport.GenerateAsync(Input("Name") with { PromptVersion = "unified-title-v1/rules-v1" }, connection, () => marked++, CancellationToken.None);
+Check("stale frozen prompt is rejected without sending", reply.NotSent && reply.Error == "configuration" && calls == callsBeforeStalePrompt);
 mode = "term"; reply = await transport.GenerateAsync(Input("Term"), connection, () => marked++, CancellationToken.None);
 Check("one shared dictionary term validates correlation id and requested language", reply.Text == "奇幻" && reply.Error is null);
 mode = "429"; reply = await transport.GenerateAsync(Input("Name"), connection, () => marked++, CancellationToken.None);

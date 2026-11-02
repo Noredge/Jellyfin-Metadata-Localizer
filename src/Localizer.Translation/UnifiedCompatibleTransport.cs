@@ -22,7 +22,7 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
     }
     public string PromptVersion(string field, string language) => field switch
     {
-        "Name" => "unified-title-v1/" + rules(language).Version,
+        "Name" => "unified-title-v2-source-language/" + rules(language).Version,
         "Overview" => "unified/" + OverviewPipeline.Version,
         "Term" => "unified/" + GenreTranslationPipeline.Version,
         _ => throw new ArgumentException("InvalidGenerationField")

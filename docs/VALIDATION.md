@@ -1,5 +1,13 @@
 # Validation
 
+## Release candidate: 1.0.0-rc.1
+
+The automated gate contains 776 checks. It adds correctly hashed archives with missing, empty or unsupported database definitions; backup/restore must reject them without publishing a destination. The supported hash is checked against the runtime schema resource. Path checks cover Windows console aliases, superscript COM/LPT devices, invalid filename characters and valid Unicode names without opening any device.
+
+Injected HTTP checks cover English, Chinese, French and mixed-language source text across title, synopsis and dictionary generation for both output languages, including name protection and response parsing. Changed prompts have new request fingerprints; stale frozen inputs cannot send under a different prompt. These tests validate request construction and parsing, not a real model's translation quality. Existing translation selections and local rule content remain reusable.
+
+Paired backup/restore and startup of full-data copies verify unified preview compatibility independently from fresh initialization and synthetic native-host checks. This is a prerelease for Jellyfin 12.0.0 / Windows x64. Real provider end-to-end calls and a 24-48 hour candidate soak are not part of this release gate; no real translation requests are sent during validation or deployment.
+
 ## Unified maintenance: 0.12.0-preview.2
 
 The automated gate covers 700 checks: the prior 623 unified regressions, 24 local-rule checks, 20 offline backup checks, 26 adoption checks and seven public setup checks. Added coverage includes optional local defaults, content fingerprints, frozen process configuration, malformed rules failing before DB writes, UTF-8 BOM input, manual selection preservation, server ownership, unfinished/unknown request guards, uncertain display guards, never-overwrite behavior and committed WAL preservation.

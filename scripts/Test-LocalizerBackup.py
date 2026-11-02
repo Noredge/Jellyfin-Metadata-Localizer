@@ -1,5 +1,6 @@
 """Synthetic unified backup fault checks. Does not access Jellyfin or a provider."""
 from pathlib import Path
+from contextlib import closing
 import hashlib
 import importlib.util
 import json
@@ -25,6 +26,7 @@ def rejects(fn):
     try:fn()
     except (ValueError,FileExistsError,sqlite3.DatabaseError,KeyError):return True
     return False
+check('backup schema definition matches the runtime schema resource',b.SCHEMA_HASH==hashlib.sha256(schema.encode()).hexdigest())
 archive=root/'backup.zip'
 check('backup requires stopped-server acknowledgement',rejects(lambda:b.backup(source,archive)))
 check('archive cannot be inside data directory',rejects(lambda:b.backup(source,source/'backup.zip',server_stopped=True)))
@@ -42,10 +44,14 @@ try:
     check('data at the size limit remains restorable with its manifest',b.inventory(root/'boundary-restored')==original)
 finally:b.MAX_BYTES=limit
 check('restore cannot overwrite installed or restored data',rejects(lambda:b.restore(archive,root/'restored',server_stopped=True)))
-for index,name in enumerate(['../escape','/absolute','C:/escape','folder\\escape','CON','bad.','bad ','bad:stream']):
+for index,name in enumerate(['../escape','/absolute','C:/escape','folder\\escape','CON','bad.','bad ','bad:stream',
+                             'CONOUT$','conin$.json','folder/COM¹.txt','LPT²','com³.log','LPT³.json',
+                             'CON .txt','bad*name','bad?name','bad"name','bad<name','bad>name','bad|name']):
     bad=root/f'unsafe-{index}.zip'
     with zipfile.ZipFile(bad,'w') as z:z.writestr(name,'synthetic')
     check('unsafe archive path rejected '+str(index),rejects(lambda:b.restore(bad,root/f'unsafe-target-{index}',server_stopped=True)))
+for index,name in enumerate(('credentials/compatible/key.json','local-rules.json','COM10.txt','LPT0','console.json','电影/规则.json')):
+    check('ordinary archive path accepted '+str(index),b.safe_name(name)==name)
 with zipfile.ZipFile(archive) as z:entries={x.filename:z.read(x) for x in z.infolist()}
 bad=root/'corrupt.zip'
 with zipfile.ZipFile(bad,'w') as z:
@@ -54,6 +60,21 @@ check('corrupt payload fails before creating destination',rejects(lambda:b.resto
 badroot=root/'other';badroot.mkdir()
 with sqlite3.connect(badroot/'metadata-localizer.db') as db:db.execute('create table unrelated(value)')
 check('unrelated database is rejected',rejects(lambda:b.backup(badroot,root/'other.zip',server_stopped=True)))
+for index,value in enumerate((None,'','nonmatching-definition')):
+    invalid=root/f'invalid-definition-{index}';invalid.mkdir()
+    with closing(sqlite3.connect(invalid/'metadata-localizer.db')) as db:
+        db.executescript(schema)
+        if value is not None:db.execute('insert into runtime_state values(?,?)',('schema_definition',value))
+        db.commit()
+    target=root/f'unsupported-backup-{index}.zip'
+    check('unsupported definition fails backup before archive creation '+str(index),rejects(lambda:b.backup(invalid,target,server_stopped=True)) and not target.exists())
+    # A correctly hashed archive can still hold a database this plugin cannot open.
+    bad=root/f'unsupported-restore-{index}.zip';files=b.inventory(invalid)
+    with zipfile.ZipFile(bad,'w') as z:
+        for name in files:z.write(invalid/name,name)
+        z.writestr('backup-manifest.json',json.dumps({'format':2,'files':files}))
+    destination=root/f'unsupported-target-{index}'
+    check('unsupported definition fails restore without publishing destination '+str(index),rejects(lambda:b.restore(bad,destination,server_stopped=True)) and not destination.exists() and not list(root.glob('.localizer-restore-*')))
 if os.name=='nt':
     import ctypes
     from ctypes import wintypes
