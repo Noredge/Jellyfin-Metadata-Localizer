@@ -4,7 +4,7 @@
 
 Translate and manage movie titles, NFO synopses, and genres in Jellyfin. Keep original sources and translation history, reuse saved translations, and follow one shared display language.
 
-**1.0.0-rc.2 · Pre-release · Jellyfin 12.0.0 · Windows x64**
+**1.0.0-rc.3 · Pre-release · Jellyfin 12.0.0 · Windows x64**
 
 ## Features
 
