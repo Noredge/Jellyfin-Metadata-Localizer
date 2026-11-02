@@ -58,6 +58,26 @@ internal static class Rc2Checks
             var back = f.Submit([media], ["Name"], true).WorkIds.Single(); await f.Drain();
             check("returning to original target language does not clear unknown consent", f.Transport.Calls == 3 && f.Work.Find(back)!.State == "paused");
         }
+        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-unknown-cache-display")))
+        {
+            var media = f.Add("display");
+            f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
+            f.Submit([media], ["Name"]); await f.Drain(); f.Transport.Handler = null;
+            var field = f.Content.ReadField(media, "Name")!;
+            f.Host.Change(f.Key(media), "Name", x => x with { Writable = false, DisplayError = "field_locked" });
+            f.Content.SaveManual(field, "zh-Hans", "已保存译文", true, f.Host.Get(f.Key(media), "Name").Display, "known-manual"); await f.Drain();
+            var display = f.Work.List().Single(x => x.State == "failed").Id;
+            f.Host.Change(f.Key(media), "Name", x => x with { Writable = true, DisplayError = null });
+            f.Work.Retry(display); await f.Drain();
+            check("display-only retry neither requires nor clears unrelated unknown consent", f.Transport.Calls == 1 && f.Work.Find(display)!.State == "completed"
+                && f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=0") == 1);
+            var reuse = f.Submit([media], ["Name"]).WorkIds.Single();
+            f.Database.Write((db, tx) => Execute(db, tx, "UPDATE work_items SET state='paused',issue_kind='translation',error_code='input_outcome_unknown' WHERE id=$id", ("$id", reuse)));
+            var noSavedReference = f.Work.Find(reuse)!.TranslationId is null;
+            f.Work.Retry(reuse); await f.Drain();
+            check("retry can reuse a selected cache without acknowledging a prior unknown request", noSavedReference && f.Transport.Calls == 1 && f.Work.Find(reuse)!.State == "completed"
+                && f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=0") == 1);
+        }
         using (var f = new ExecutorFixture(Path.Combine(root, "rc2-person-validation")))
         {
             var config = new ConfigurationStore(f.Database); var id = Id();

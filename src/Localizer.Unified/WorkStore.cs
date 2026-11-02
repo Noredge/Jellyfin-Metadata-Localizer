@@ -330,7 +330,10 @@ public sealed class WorkStore(UnifiedDatabase database, Func<DateTimeOffset>? ut
             """, ("$id", id), ("$kind", w.TargetKind), ("$m", w.MediaId), ("$t", w.TermId), ("$f", w.Field), ("$s", w.SourceId),
             ("$sr", w.SourceRevision), ("$cr", w.ControlRevision), ("$rr", w.RenderRevision), ("$l", w.Language), ("$e", w.TargetEpoch), ("$g", w.GenerationKey));
         if (replacement is not null) return replacement;
-        if (RequestStore.HasUnknown(db, tx, w))
+        // Display/restore and known cached results cannot send. They neither require nor clear consent.
+        var mayGenerate = w.Operation == "sync" && w.Field != "Genres" && w.TranslationId is null
+            && (w.ForceGeneration || Scalar<long>(db, tx, "SELECT COUNT(*) FROM translation_selections WHERE source_id=$s AND language=$l", ("$s", w.SourceId), ("$l", w.Language)) == 0);
+        if (mayGenerate && RequestStore.HasUnknown(db, tx, w))
         {
             if (!acceptUnknown) throw new InvalidOperationException("UnknownOutcomeConsentRequired");
             RequestStore.AcknowledgeUnknown(db, tx, w);
