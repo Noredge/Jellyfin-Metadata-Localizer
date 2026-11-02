@@ -3,6 +3,8 @@
 param([string]$Dotnet = 'dotnet', [string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+[xml]$versionProperties=Get-Content -LiteralPath (Join-Path $repo 'Directory.Build.props') -Raw
+$assemblyVersion=$versionProperties.Project.PropertyGroup.AssemblyVersion
 & (Join-Path $PSScriptRoot 'Build.ps1') -Dotnet $Dotnet
 Push-Location $repo
 try {
@@ -32,7 +34,7 @@ try {
     foreach ($name in @('Localizer.Plugin.dll','Localizer.Core.dll','Localizer.Jellyfin.dll','Localizer.Translation.dll','Localizer.Unified.dll')) {
         $path = Join-Path $repo "src/Localizer.Plugin/bin/Release/net10.0/$name"
         $version = [Reflection.AssemblyName]::GetAssemblyName($path).Version.ToString()
-        if ($version -ne '0.12.0.0') { throw "Unexpected assembly version for $name" }
+        if ($version -ne $assemblyVersion) { throw "Unexpected assembly version for $name" }
         $assemblies += [ordered]@{ name=$name; version=$version; sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $metadata = [ordered]@{ assemblies=@($assemblies); hostDependencies=@($references | Sort-Object name) } | ConvertTo-Json -Depth 6

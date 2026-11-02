@@ -9,12 +9,14 @@ Push-Location $repo
 try {
     & $Python scripts/Test-LocalizerBackup.py (Join-Path $evidence 'backup') (Join-Path $evidence 'backup-checks.json')
     if($LASTEXITCODE -ne 0){throw 'Backup checks failed'}
+    & $Python scripts/Test-LocalizerAdoption.py (Join-Path $evidence 'adoption') (Join-Path $evidence 'adoption-checks.json')
+    if($LASTEXITCODE -ne 0){throw 'Adoption checks failed'}
     & $Node tests/check_public_release.mjs (Join-Path $evidence 'public-ui-checks.json')
     if($LASTEXITCODE -ne 0){throw 'Public setup checks failed'}
     & $Python scripts/Privacy-Check.py
     if($LASTEXITCODE -ne 0){throw 'Privacy checks failed'}
     $summary=Get-Content -LiteralPath (Join-Path $evidence 'VERIFICATION.json') -Raw|ConvertFrom-Json
-    foreach($file in @('backup-checks.json','public-ui-checks.json')){
+    foreach($file in @('backup-checks.json','adoption-checks.json','public-ui-checks.json')){
         $r=Get-Content -LiteralPath (Join-Path $evidence $file) -Raw|ConvertFrom-Json
         if($r.status -ne 'passed' -or @($r.checks|Where-Object{-not $_.passed}).Count){throw 'Failed extra check'}
         $summary.checks+=$r.checks.Count

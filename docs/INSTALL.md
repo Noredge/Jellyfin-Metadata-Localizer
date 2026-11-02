@@ -25,3 +25,7 @@ Edit a translation with **Save only** to keep display unchanged, or choose **Sav
 The interface supports Chinese/English and a narrow layout. Idle unchanged pages reduce request frequency up to about ten seconds; active work refreshes about every two seconds. Hidden pages stop polling, while backend work continues.
 
 中文提示：这是新架构预览版，旧数据保留但不迁移。请先备份，安装后创建新版库并重新配置连接。任务结果自动显示，首次接入已有库不自动补齐历史；从小库、单片开始。
+
+## Compatible unified stores
+
+For optional personal rules and explicit offline adoption of a compatible unified schema-1 store, see [local rules and adoption](LOCAL-RULES.md). No store is selected or merged automatically. Keep the source, complete backup and old plugin for rollback.

@@ -9,7 +9,8 @@ public sealed record GenreTermView(string Id, string Original, long ControlRevis
 
 public sealed class ConfigurationStore(UnifiedDatabase database)
 {
-    private static readonly Lazy<Dictionary<string, (string Chinese, string English)>> Builtin = new(() =>
+    private IReadOnlyDictionary<string, (string Chinese, string English)> Builtin => database.LocalRules.Genres ?? DefaultBuiltin.Value;
+    private static readonly Lazy<Dictionary<string, (string Chinese, string English)>> DefaultBuiltin = new(() =>
     {
         using var stream = typeof(ConfigurationStore).Assembly.GetManifestResourceStream("Localizer.Unified.Genres.tsv")!;
         using var reader = new StreamReader(stream); if (reader.ReadLine() != "Original\tChinese\tEnglish") throw new InvalidOperationException("BuiltinDictionaryInvalid");
@@ -19,7 +20,7 @@ public sealed class ConfigurationStore(UnifiedDatabase database)
     });
     public void SeedBuiltin() => database.Write((db, tx) =>
     {
-        foreach (var (original, names) in Builtin.Value)
+        foreach (var (original, names) in Builtin)
         {
             var term = Hash("term\0" + original); var source = Hash("term-source\0" + original);
             Execute(db, tx, "INSERT OR IGNORE INTO source_versions(id,kind,owner_id,content,content_hash,created_utc) VALUES($s,'Term',$t,$o,$h,$n)", ("$s", source), ("$t", term), ("$o", original), ("$h", Hash(original)), ("$n", Now()));
@@ -72,7 +73,7 @@ public sealed class ConfigurationStore(UnifiedDatabase database)
     public void RestoreBuiltin(string original, string language, long expectedControl)
     {
         ContentStore.ValidateLanguage(language);
-        if (!Builtin.Value.TryGetValue(original, out var values)) throw new InvalidOperationException("BuiltinTermUnavailable");
+        if (!Builtin.TryGetValue(original, out var values)) throw new InvalidOperationException("BuiltinTermUnavailable");
         SeedBuiltin();
         database.Write((db, tx) =>
         {

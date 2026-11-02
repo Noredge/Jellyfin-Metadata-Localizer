@@ -15,3 +15,7 @@ Pass `-Dotnet`, `-Node` and `-Python` when tools are not on PATH. Run under a no
 Preserve single-executor request accounting, immutable evidence, source and revision checks, endpoint-key binding, FULL write transactions and commit-boundary wakeup. Pooled read-only connections are separate from writable ones; retire their pool before offline replacement. NFO snapshots last only one media read; send/write boundaries read fresh sources.
 
 GitHub Actions builds/tests/packages the exact commit. Before publishing, download its artifact, verify manifest/inventory, DLL identity/version and SHA-256, and test the exact package on an isolated Jellyfin host and actual browser. Do not treat source checks as deployment or device acceptance. Never use production media or keys in a test fixture.
+
+## One maintenance branch
+
+Maintain runtime code, tests and release scripts here. Product versions are defined only in `Directory.Build.props`; `Package.ps1` and `Verify-Package.py` read that file. Do not copy runtime fixes back into a personal fork. Installation-specific rules belong in `local-rules.json` outside the repository, using [local rules](LOCAL-RULES.md).

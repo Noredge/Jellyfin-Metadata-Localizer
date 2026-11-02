@@ -1,5 +1,15 @@
 # Validation
 
+## Unified maintenance: 0.12.0-preview.2
+
+The automated gate covers 700 checks: the prior 623 unified regressions, 24 local-rule checks, 20 offline backup checks, 26 adoption checks and seven public setup checks. Added coverage includes optional local defaults, content fingerprints, frozen process configuration, malformed rules failing before DB writes, UTF-8 BOM input, manual selection preservation, server ownership, unfinished/unknown request guards, uncertain display guards, never-overwrite behavior and committed WAL preservation.
+
+Isolated native tests also cover an invalid local file keeping Jellyfin running with the executor unavailable, correcting/removing rules on restart, language-specific local prompts with public fallback, and no regeneration of existing translations. The synthetic native suite passed 109 checks. Compatible full-data copies are separately used for actual rollback startup and new-package adoption acceptance; credentials are withheld and original videos are replaced with tiny owned fixtures. No real provider requests are used.
+
+Product versions now have one source, `Directory.Build.props`. The same portable five-DLL package supports default installations and local rules. Offline adoption copies an explicitly selected compatible store into a new directory and retains the original; it does not select older data automatically or revive old work. First adoption-fixture failure was a missing input/work association caught by an existing schema trigger; the fixture was corrected without relaxing the constraint.
+
+## Historical preview.1 evidence
+
 Version 0.12.0-preview.1 starts from the unified architecture. Synthetic regression coverage includes durable idempotent work, dependencies, source revisions, external edits, manual control, unknown/late outcomes, rate limits, deadlines, eleven real child-process interruption/recovery boundaries, XML limits/ownership, readonly pooling, search indexes, missing-only queries, response fencing, reading anchors, pagination and polling backoff.
 
 Public-specific checks cover fresh initialization beside an exclusively locked older store, automatic processing off, independent storage, public identity and general prompt resources. Offline backup checks cover integrity, digests, independent restore, active locks, path traversal and never-overwrite behavior. No test needs real provider traffic.

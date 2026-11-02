@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Collections.Concurrent;
 using Localizer.Jellyfin;
+using Localizer.Core;
 using Localizer.Translation;
 using Localizer.Unified;
 using MediaBrowser.Common;
@@ -22,6 +23,10 @@ public sealed class UnifiedRuntime : IDisposable
     private readonly ILibraryManager library;
     private readonly IApplicationHost application;
     private readonly IUnifiedTransport transport;
+    private readonly LocalRulePackProvider localRules;
+    public object LocalRules => new { Loaded = Ready && Database.LocalRules.Loaded,
+        TitleLanguages = Ready ? Database.LocalRules.Titles.Keys.Order(StringComparer.Ordinal).ToArray() : [],
+        GenreTerms = Ready ? Database.LocalRules.Genres?.Count : null };
     private UnifiedHealth health = new("Starting", null, DateTimeOffset.UtcNow);
     public UnifiedHealth Health => Volatile.Read(ref health);
     public string Root { get; }
@@ -45,9 +50,10 @@ public sealed class UnifiedRuntime : IDisposable
         var available = library.GetVirtualFolders().Where(x => Guid.TryParse(x.ItemId, out _)).Select(x => Guid.Parse(x.ItemId)).ToHashSet();
         if (ids.Any(x => !Guid.TryParse(x, out var id) || !available.Contains(id))) throw new ArgumentException("LibraryUnavailable");
     }
-    public UnifiedRuntime(IApplicationPaths paths, ILibraryManager library, IApplicationHost application, IUnifiedTransport transport)
+    public UnifiedRuntime(IApplicationPaths paths, ILibraryManager library, IApplicationHost application, IUnifiedTransport transport, LocalRulePackProvider localRules)
     {
         Root = DataLayout.Root(paths.DataPath); this.library = library; this.application = application; this.transport = transport;
+        this.localRules = localRules;
         library.ItemAdded += Changed; library.ItemUpdated += Changed; library.ItemRemoved += Changed;
     }
     private void Changed(object? sender, ItemChangeEventArgs args)
@@ -62,7 +68,7 @@ public sealed class UnifiedRuntime : IDisposable
         lock (gate)
         {
             if (Ready) return;
-            var database = new UnifiedDatabase(Root, create, WorkAvailable);
+            var database = new UnifiedDatabase(Root, create, WorkAvailable, localRules.Read());
             var work = new WorkStore(database); var host = new JellyfinUnifiedHost(library, application, database);
             var executor = new UnifiedExecutor(work, host, transport);
             try { new Localizer.Unified.ConfigurationStore(database).SeedBuiltin(); }
@@ -193,8 +199,10 @@ public sealed class UnifiedRuntime : IDisposable
         library.ItemAdded -= Changed; library.ItemUpdated -= Changed; library.ItemRemoved -= Changed;
         lock (gate) { if (Ready) { Executor.Dispose(); Database.ReleaseReadPool(); } }
     }
-    public static TitleRules Rules(string language)
+    public static TitleRules Rules(string language, LocalRulePack? local = null)
     {
+        if (local?.Titles.TryGetValue(language, out var custom) == true)
+            return new(custom.Version, custom.Instructions, custom.Rules.Select(x => new TerminologyRule(x.Id, x.Pattern, x.Instruction)).ToArray());
         using var stream = typeof(Plugin).Assembly.GetManifestResourceStream("Localizer.Rules." + language + ".json") ?? throw new ArgumentException("UnsupportedLanguage");
         return JsonSerializer.Deserialize<TitleRules>(stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     }
@@ -206,7 +214,8 @@ public sealed class UnifiedWorker(UnifiedRuntime runtime, ILogger<UnifiedWorker>
     {
         try { runtime.Open(); }
         catch (Exception error) when (error is IOException or InvalidOperationException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
-        { runtime.SetHealth("Unavailable", error is InvalidOperationException invalid && invalid.Message.StartsWith("UnsupportedUnified", StringComparison.Ordinal) ? "UnsupportedUnifiedSchema" : "UnifiedDatabaseRequired"); }
+        { runtime.SetHealth("Unavailable", error is InvalidOperationException { Message: "LocalRulesInvalid" } ? "LocalRulesInvalid"
+            : error is InvalidOperationException invalid && invalid.Message.StartsWith("UnsupportedUnified", StringComparison.Ordinal) ? "UnsupportedUnifiedSchema" : "UnifiedDatabaseRequired"); }
         // Observer is read-only with respect to Jellyfin; the only executor serializes all HTTP and display operations.
         await Task.WhenAll(Observe(token), Execute(token));
     }

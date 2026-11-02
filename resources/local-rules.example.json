@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "titleRules": {
+    "en": {
+      "version": "my-title-rules-v1",
+      "instructions": "Use natural English and preserve the source meaning, names, numbers and ambiguity. Copy every protected name placeholder exactly once.",
+      "rules": []
+    }
+  }
+}

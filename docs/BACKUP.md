@@ -22,3 +22,7 @@ To replace an installed directory, keep Jellyfin stopped, retain the current dir
 Keep old `data/metadata-localizer` and the old plugin separately. Version 0.12 neither migrates nor rewrites them. Switching DLLs does not undo metadata displayed by 0.12: use guarded restore actions or restore the complete paired Jellyfin backup from before the switch. Do not mix versions' DLLs or point an old version at the new DB. Old Release and Git history remain available.
 
 中文提示：停服后整目录备份并保全SQLite旁文件和加密密钥。工具只备份插件数据，完整回退还需要配套的Jellyfin主库及配置。恢复到全新目录校验；覆盖安装前另存当前数据。
+
+## Compatible unified stores
+
+For optional personal rules and explicit offline adoption of a compatible unified schema-1 store, see [local rules and adoption](LOCAL-RULES.md). No store is selected or merged automatically. Keep the source, complete backup and old plugin for rollback.

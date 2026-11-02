@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0-preview.2 — Unreleased, unified maintenance
+
+- Use one portable package for general defaults and optional installation-local title/genre rule packs.
+- Add explicit offline adoption of an idle compatible schema-1 store, preserving original data and credentials with verified backup/restore and server-ownership checks.
+- Show local rule status and fail closed on invalid rules; preserve manual selections and fingerprint custom prompt content.
+- Centralize product versions in `Directory.Build.props` and keep private data/rules outside source and release assets.
+
 ## 0.12.0-preview.1
 
 - New unified database, one durable queue and one public HTTPS compatible connection.

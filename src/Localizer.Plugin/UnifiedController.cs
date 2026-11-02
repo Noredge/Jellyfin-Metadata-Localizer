@@ -57,7 +57,7 @@ public sealed class UnifiedController(UnifiedRuntime runtime) : ControllerBase
     }
     private Task<ActionResult> Guard(Func<object> action, bool require = true) => Guard(() => Task.FromResult(action()), require);
     [HttpGet("state")]
-    public Task<ActionResult> State() => Guard(() => new { runtime.Ready, runtime.Health, runtime.LegacyDataPresent, Settings = runtime.Ready ? Settings.Read() : null, Libraries = runtime.Libraries(),
+    public Task<ActionResult> State() => Guard(() => new { runtime.Ready, runtime.Health, runtime.LegacyDataPresent, runtime.LocalRules, Settings = runtime.Ready ? Settings.Read() : null, Libraries = runtime.Libraries(),
         ExecutionIdleCeilingMs = runtime.ExecutionIdle.Delay.TotalMilliseconds, ExecutionEmptyChecks = runtime.ExecutionIdle.EmptyChecks,
         ObservationPerformance = runtime.Ready ? runtime.Observer.Performance : null }, false);
     [HttpPost("initialize")]

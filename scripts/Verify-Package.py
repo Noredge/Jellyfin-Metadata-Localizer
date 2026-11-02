@@ -6,15 +6,19 @@ import json
 from pathlib import Path
 import re
 import zipfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.12.0-preview.1'
+PROPERTIES = ET.parse(ROOT / 'Directory.Build.props').getroot().find('PropertyGroup')
+VERSION = PROPERTIES.findtext('Version')
+ASSEMBLY_VERSION = PROPERTIES.findtext('AssemblyVersion')
 ASSEMBLIES = ('Localizer.Plugin.dll', 'Localizer.Core.dll', 'Localizer.Jellyfin.dll', 'Localizer.Translation.dll','Localizer.Unified.dll')
 PAYLOAD = {f'Localizer/{name}': f'src/Localizer.Plugin/bin/Release/net10.0/{name}' for name in ASSEMBLIES}
 PAYLOAD.update({name: name for name in (
     'LICENSE', 'NOTICE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md',
-    'docs/INSTALL.md', 'docs/BACKUP.md', 'docs/PRIVACY.md', 'docs/VALIDATION.md', 'docs/DEVELOPMENT.md')})
+    'docs/INSTALL.md', 'docs/BACKUP.md', 'docs/PRIVACY.md', 'docs/VALIDATION.md', 'docs/DEVELOPMENT.md', 'docs/LOCAL-RULES.md')})
 PAYLOAD.update({'tools/Localizer-DataBackup.py': 'scripts/Localizer-DataBackup.py'})
+PAYLOAD.update({'tools/Localizer-AdoptData.py': 'scripts/Localizer-AdoptData.py', 'tools/local-rules.example.json': 'resources/local-rules.example.json'})
 
 
 def digest(data):
@@ -38,7 +42,7 @@ def verify(path):
         if archive.testzip() is not None:
             raise ValueError('Archive CRC validation failed.')
         manifest = json.loads(archive.read('package-manifest.json'))
-        if manifest['packageVersion'] != VERSION or manifest['assemblyVersion'] != '0.12.0.0':
+        if manifest['packageVersion'] != VERSION or manifest['assemblyVersion'] != ASSEMBLY_VERSION:
             raise ValueError('Unexpected package version.')
         if manifest.get('pluginId') != '12bb696e-b52a-4b98-a4fa-39d32bfca5aa' or manifest.get('dataDirectory') != 'metadata-localizer-v2':
             raise ValueError('Unexpected public plugin identity or data directory.')
@@ -79,10 +83,10 @@ def create(metadata_path):
     metadata = json.loads(metadata_path.read_text(encoding='utf-8-sig'))
     data = {target: (ROOT / source).read_bytes() for target, source in PAYLOAD.items()}
     for entry in metadata['assemblies']:
-        if entry['version'] != '0.12.0.0' or digest(data['Localizer/' + entry['name']]) != entry['sha256']:
+        if entry['version'] != ASSEMBLY_VERSION or digest(data['Localizer/' + entry['name']]) != entry['sha256']:
             raise ValueError('Assembly changed since build metadata was collected.')
     manifest = {
-        'packageVersion': VERSION, 'assemblyVersion': '0.12.0.0',
+        'packageVersion': VERSION, 'assemblyVersion': ASSEMBLY_VERSION,
         'pluginId': '12bb696e-b52a-4b98-a4fa-39d32bfca5aa', 'dataDirectory': 'metadata-localizer-v2',
         'target': 'Jellyfin 12.0.0 / Windows x64 / .NET 10',
         'sourceTreeSha256': source_hash(), 'sourceHashAlgorithm': 'SHA-256 of sorted UTF-8 relative-path and file-hash lines, with final LF',

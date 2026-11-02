@@ -4,7 +4,7 @@
 
 Translate and manage movie titles, NFO synopses, and genres in Jellyfin. Keep original sources and translation history, reuse saved translations, and follow one shared display language.
 
-**0.12.0-preview.1 · Preview · Jellyfin 12.0.0 · Windows x64**
+**0.12.0-preview.2 · Development (not released) · Jellyfin 12.0.0 · Windows x64**
 
 ## Features
 
@@ -21,7 +21,7 @@ Jellyfin Server **12.0.0**, Windows x64, administrator access, and a public HTTP
 
 ## Install and start
 
-1. Download the ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases/tag/v0.12.0-preview.1). Verify the checksum.
+1. Download the ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases). Verify the checksum.
 2. Back up and stop Jellyfin. Move the previous plugin folder outside the plugin directory; install the ZIP's `Localizer` folder and restart. Do not mix public and personal-fork DLLs.
 3. Open **Metadata Localizer**, create the new database, and select managed movie libraries and fields.
 4. Enter the API base and key → get models → select a model → save. Model lookup uses the draft without requiring a prior save or model. The translation test is optional and consumes one request if confirmed.
@@ -44,3 +44,5 @@ The server stores the key using Windows CurrentUser DPAPI, bound to the endpoint
 ## License
 
 [GPL-3.0-only](LICENSE); see [NOTICE](NOTICE). Unofficial Jellyfin plugin.
+
+The same package supports optional installation-local title and genre rules. Compatible unified stores can be explicitly adopted offline while retaining existing data and credentials; see [local rules and adoption](docs/LOCAL-RULES.md). Product versions are maintained in `Directory.Build.props`.

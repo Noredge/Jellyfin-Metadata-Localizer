@@ -20,12 +20,14 @@ public sealed class UnifiedDatabase
     public static string SchemaHash => Hash(SchemaText);
     public string Path { get; }
     public QueueWakeup WorkAvailable { get; }
+    public Localizer.Core.LocalRulePack LocalRules { get; }
     public UnifiedDatabase(string root, bool create = false) : this(root, create, new QueueWakeup()) { }
-    public UnifiedDatabase(string root, bool create, QueueWakeup workAvailable)
+    public UnifiedDatabase(string root, bool create, QueueWakeup workAvailable, Localizer.Core.LocalRulePack? localRules = null)
     {
         ArgumentNullException.ThrowIfNull(workAvailable);
         WorkAvailable = workAvailable;
         if (!System.IO.Path.IsPathFullyQualified(root)) throw new ArgumentException("Absolute data root required.");
+        LocalRules = localRules ?? Localizer.Core.LocalRulePack.Load(root);
         Path = System.IO.Path.Combine(root, "metadata-localizer.db");
         if (!File.Exists(Path))
         {

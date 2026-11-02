@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 IGNORED = {'.git', 'work', 'artifacts', 'bin', 'obj', '__pycache__', '.vs', '.idea'}
-ROOT_FILES = {'.gitignore', '.gitattributes', 'global.json', 'NuGet.config', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'LICENSE', 'NOTICE'}
+ROOT_FILES = {'.gitignore', '.gitattributes', 'global.json', 'NuGet.config', 'Directory.Build.props', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'LICENSE', 'NOTICE'}
 SOURCE_DIRS = {'src', 'tests', 'scripts', 'resources', 'docs', '.github'}
 FORBIDDEN = {'.db', '.sqlite', '.sqlite3', '.nfo', '.dpapi', '.zip', '.7z', '.log', '.pfx', '.pem'}
 
@@ -36,7 +36,7 @@ def inspect():
     ]
     for path in files:
         relative = path.relative_to(ROOT).as_posix()
-        if path.suffix.lower() in FORBIDDEN or any(p in {'private', 'credentials', 'archives', 'reports'} for p in path.relative_to(ROOT).parts):
+        if path.name == 'local-rules.json' or path.suffix.lower() in FORBIDDEN or any(p in {'private', 'credentials', 'archives', 'reports'} for p in path.relative_to(ROOT).parts):
             failures.append({'file': relative, 'reason': 'private or generated payload'})
             continue
         try:
