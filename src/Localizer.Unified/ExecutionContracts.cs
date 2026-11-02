@@ -24,7 +24,8 @@ public sealed record GenerationDiagnostics(string? Stage = null, string? Code = 
     System.Text.Json.JsonElement? Validation = null, int? OutputTokenLimit = null);
 public sealed record TokenUsage(long? PromptTokens = null, long? CompletionTokens = null, long? TotalTokens = null);
 public sealed record GenerationReply(string? Text, string? Error = null, int? HttpStatus = null, GenerationDiagnostics? Diagnostics = null,
-    TokenUsage? Usage = null, long? RetryAfterMs = null, bool NotSent = false, bool OutcomeUnknown = false);
+    TokenUsage? Usage = null, long? RetryAfterMs = null, bool NotSent = false, bool OutcomeUnknown = false,
+    Localizer.Core.PersonTextTemplate? PersonTemplate = null);
 public interface IUnifiedTransport
 {
     string PromptVersion(string field, string language);

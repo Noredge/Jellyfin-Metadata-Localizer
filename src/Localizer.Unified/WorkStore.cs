@@ -31,18 +31,20 @@ public sealed class WorkStore(UnifiedDatabase database, Func<DateTimeOffset>? ut
         using var db = database.Open(); using var cmd = Command(db, null, "SELECT " + Columns + " FROM work_items WHERE ($b IS NULL OR id IN(SELECT work_id FROM batch_items WHERE batch_id=$b)) ORDER BY created_utc,id LIMIT $limit OFFSET $offset",
             ("$b", batchId), ("$limit", limit), ("$offset", offset)); using var r = cmd.ExecuteReader(); var values = new List<UnifiedWork>(); while (r.Read()) values.Add(Read(r)); return [.. values];
     }
-    public BatchReceipt Submit(string commandId, string kind, long settingsRevision, WorkSeed[] seeds, bool force = false, string operation = "sync")
+    public BatchReceipt Submit(string commandId, string kind, long settingsRevision, WorkSeed[] seeds, bool force = false, string operation = "sync", string? previewId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(commandId);
         if (operation is not ("sync" or "display" or "restore") || kind is not ("fill" or "language" or "retranslate" or "manual" or "dictionary")) throw new ArgumentException("InvalidWorkIntent");
         var fingerprint = SubmissionFingerprint(kind, settingsRevision, seeds.Select(x => (x.Field.MediaId, x.Field.Field)), force, operation);
         return database.Write((db, tx) =>
         {
+            if (previewId is not null) CheckPreviewBinding(db, tx, commandId, previewId);
             var id = Hash("batch\0" + commandId);
             var old = Scalar<string>(db, tx, "SELECT request_fingerprint FROM batches WHERE id=$id", ("$id", id));
             if (old is not null)
             {
                 if (old != fingerprint) throw new InvalidOperationException("SubmissionConflict");
+                if (previewId is not null) BindPreview(db, tx, commandId, previewId);
                 return Batch(db, tx, id);
             }
             var settings = SettingsStore.Read(db, tx);
@@ -64,19 +66,42 @@ public sealed class WorkStore(UnifiedDatabase database, Func<DateTimeOffset>? ut
                 var work = EnqueueMedia(db, tx, f, seed.ExpectedDisplay, settings, generation, force, false, operation, Hash(id + "\0" + f.MediaId + "\0" + f.Field));
                 Execute(db, tx, "INSERT OR IGNORE INTO batch_items VALUES($b,$w,1)", ("$b", id), ("$w", work));
             }
+            if (previewId is not null) BindPreview(db, tx, commandId, previewId);
             return Batch(db, tx, id);
         });
+    }
+    private static string PreviewKey(string commandId) => "preview_command/" + Hash(commandId);
+    private static void CheckPreviewBinding(SqliteConnection db, SqliteTransaction? tx, string commandId, string previewId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandId); ArgumentException.ThrowIfNullOrWhiteSpace(previewId);
+        var old = Scalar<string>(db, tx, "SELECT value FROM runtime_state WHERE key=$k", ("$k", PreviewKey(commandId)));
+        if (old is not null && old != previewId) throw new InvalidOperationException("SubmissionConflict");
+    }
+    private static void BindPreview(SqliteConnection db, SqliteTransaction tx, string commandId, string previewId) =>
+        Execute(db, tx, "INSERT OR IGNORE INTO runtime_state(key,value) VALUES($k,$v)", ("$k", PreviewKey(commandId)), ("$v", previewId));
+    public BatchReceipt? TryReplayPreview(string commandId, string previewId)
+    {
+        using var db = database.Open(); CheckPreviewBinding(db, null, commandId, previewId);
+        return Scalar<string>(db, null, "SELECT value FROM runtime_state WHERE key=$k", ("$k", PreviewKey(commandId))) is null
+            ? null : Batch(db, null, Hash("batch\0" + commandId));
     }
     private static string SubmissionFingerprint(string kind, long settingsRevision, IEnumerable<(string MediaId, string Field)> targets, bool force, string operation) =>
         Hash(JsonSerializer.Serialize(new { kind, settingsRevision, force, operation,
             targets = targets.Select(x => new { x.MediaId, x.Field }).OrderBy(x => x.MediaId, StringComparer.Ordinal).ThenBy(x => x.Field, StringComparer.Ordinal) }));
-    public BatchReceipt? TryReplay(string commandId, string kind, long settingsRevision, (string MediaId, string Field)[] targets, bool force = false, string operation = "sync")
+    public BatchReceipt? TryReplay(string commandId, string kind, long settingsRevision, (string MediaId, string Field)[] targets, bool force = false, string operation = "sync", string? previewId = null)
     {
-        using var db = database.Open(); var id = Hash("batch\0" + commandId);
-        var fingerprint = Scalar<string>(db, null, "SELECT request_fingerprint FROM batches WHERE id=$id", ("$id", id));
-        if (fingerprint is null) return null;
-        if (fingerprint != SubmissionFingerprint(kind, settingsRevision, targets, force, operation)) throw new InvalidOperationException("SubmissionConflict");
-        return Batch(db, null, id);
+        BatchReceipt? Replay(SqliteConnection db, SqliteTransaction? tx)
+        {
+            if (previewId is not null) CheckPreviewBinding(db, tx, commandId, previewId);
+            var id = Hash("batch\0" + commandId);
+            var fingerprint = Scalar<string>(db, tx, "SELECT request_fingerprint FROM batches WHERE id=$id", ("$id", id));
+            if (fingerprint is null) return null;
+            if (fingerprint != SubmissionFingerprint(kind, settingsRevision, targets, force, operation)) throw new InvalidOperationException("SubmissionConflict");
+            if (previewId is not null) BindPreview(db, tx!, commandId, previewId);
+            return Batch(db, tx, id);
+        }
+        if (previewId is not null) return database.Write<BatchReceipt?>((db, tx) => Replay(db, tx), wakeExecutor: false);
+        using var db = database.Open(); return Replay(db, null);
     }
     public BatchReceipt SubmitTerms(string commandId, string kind, long settingsRevision, string[] originals, bool force = false)
     {

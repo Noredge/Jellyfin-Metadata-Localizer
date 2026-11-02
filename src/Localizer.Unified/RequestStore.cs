@@ -57,7 +57,7 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
             var text = Scalar<string>(db, tx, "SELECT content FROM source_versions WHERE id=$s", ("$s", w.SourceId));
             var names = new List<object>();
             var owners = new Dictionary<string, string>(StringComparer.Ordinal);
-            using (var cmd = Command(db, tx, "SELECT original,zh_name,en_name,aliases_json,revision FROM person_name_rules ORDER BY original"))
+            using (var cmd = Command(db, tx, "SELECT original,zh_name,en_name,aliases_json,revision,id FROM person_name_rules ORDER BY original"))
             using (var r = cmd.ExecuteReader()) while (r.Read())
             {
                 var aliases = JsonSerializer.Deserialize<string[]>(r.GetString(3))!;
@@ -66,7 +66,7 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
                 foreach (var name in aliases.Prepend(original).Distinct(StringComparer.Ordinal))
                     if (!owners.TryAdd(name, original) && owners[name] != original)
                     { r.Close(); work.State(db, tx, w.Id, "failed", "source", issue: "translation", error: "person_alias_conflict"); return null; }
-                names.Add(new { original = r.GetString(0), replacement = r.IsDBNull(w.Language == "en" ? 2 : 1) ? null : r.GetString(w.Language == "en" ? 2 : 1), aliases, revision = r.GetInt64(4) });
+                names.Add(new { id = r.GetString(5), original = r.GetString(0), replacement = r.IsDBNull(w.Language == "en" ? 2 : 1) ? null : r.GetString(w.Language == "en" ? 2 : 1), aliases, revision = r.GetInt64(4) });
             }
             var namesJson = JsonSerializer.Serialize(names);
             var contextJson = JsonSerializer.Serialize(new { protected_names = (protectedNames ?? []).Where(n => !string.IsNullOrWhiteSpace(n) && PersonNameMatching.Contains(text, n)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal) });
@@ -127,7 +127,7 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
             if (state == "prepared") error ??= "transport_did_not_mark_send";
             var successful = error is null && state == "sending" && !reply.NotSent && !unknown;
             var finalState = unknown ? "unknown" : state == "prepared" || reply.NotSent ? "not_sent" : successful ? "succeeded" : "failed";
-            var translationId = successful ? SaveTranslation(db, tx, a, reply.Text!) : null;
+            var translationId = successful ? SaveTranslation(db, tx, a, reply) : null;
             if (successful) checkpoint?.Invoke("request.result_transaction", w);
             Execute(db, tx, """
                 UPDATE request_attempts SET state=$state,completed_utc=$n,http_status=$http,error_code=$error,diagnostics_json=$diag,usage_json=$usage,elapsed_ms=$ms,translation_id=$t WHERE id=$id
@@ -163,13 +163,16 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
         timer.Stop();
         if (saved) work.RecordSaveTime(a.WorkId, timer.Elapsed);
     }
-    private string SaveTranslation(SqliteConnection db, SqliteTransaction tx, RequestAttempt a, string text)
+    private string SaveTranslation(SqliteConnection db, SqliteTransaction tx, RequestAttempt a, GenerationReply reply)
     {
+        var text = reply.Text!;
+        if (reply.PersonTemplate is not null && reply.PersonTemplate.Frozen() != text) throw new PersonTemplateException();
         var id = Hash("request-translation\0" + a.Id);
         Execute(db, tx, """
-            INSERT OR IGNORE INTO translation_versions(id,source_id,language,text,text_hash,origin,input_id,request_id,created_utc)
-            VALUES($id,$s,$l,$t,$h,'model',$i,$r,$n)
-            """, ("$id", id), ("$s", a.Input.SourceId), ("$l", a.Input.Language), ("$t", text), ("$h", Hash(text)), ("$i", a.Input.Id), ("$r", a.Id), ("$n", work.Stamp()));
+            INSERT OR IGNORE INTO translation_versions(id,source_id,language,text,text_hash,origin,input_id,request_id,provenance_json,created_utc)
+            VALUES($id,$s,$l,$t,$h,'model',$i,$r,$p,$n)
+            """, ("$id", id), ("$s", a.Input.SourceId), ("$l", a.Input.Language), ("$t", text), ("$h", Hash(text)), ("$i", a.Input.Id), ("$r", a.Id),
+            ("$p", reply.PersonTemplate is null ? "{}" : JsonSerializer.Serialize(new { person_template = reply.PersonTemplate })), ("$n", work.Stamp()));
         return id;
     }
     internal void SaveLate(RequestAttempt a, GenerationReply reply)
@@ -177,12 +180,29 @@ internal sealed class RequestStore(WorkStore work, Action<string, UnifiedWork>? 
         work.MeasureSave(a.WorkId, () => Database.Write((db, tx) =>
         {
             if (Scalar<long>(db, tx, "SELECT COUNT(*) FROM request_attempts WHERE id=$id AND state='unknown' AND late_completed_utc IS NULL", ("$id", a.Id)) != 1) return false;
-            var tid = reply.Error is null && !string.IsNullOrWhiteSpace(reply.Text) ? SaveTranslation(db, tx, a, reply.Text) : null;
+            var tid = reply.Error is null && !string.IsNullOrWhiteSpace(reply.Text) ? SaveTranslation(db, tx, a, reply) : null;
             Execute(db, tx, "UPDATE request_attempts SET late_completed_utc=$n,late_diagnostics_json=$diag,late_usage_json=$usage,late_translation_id=$t WHERE id=$id",
                 ("$n", work.Stamp()), ("$diag", JsonSerializer.Serialize(new { outcome = Code(reply.Error) ?? (tid is null ? "empty_output" : "late_history_saved"), diagnostics = reply.Diagnostics })),
                 ("$usage", JsonSerializer.Serialize(reply.Usage ?? new())), ("$t", tid), ("$id", a.Id));
             return true;
         }));
+    }
+    internal void SaveLate(string requestId, GenerationReply reply)
+    {
+        RequestAttempt attempt;
+        using (var db = Database.Open())
+        {
+            using var cmd = Command(db, null, """
+                SELECT r.work_id,r.sequence,r.state,r.connection_id,i.id,i.source_id,i.language,s.kind,s.content,i.prompt_version,i.names_json,i.context_json
+                FROM request_attempts r JOIN generation_inputs i ON i.id=r.input_id JOIN source_versions s ON s.id=i.source_id WHERE r.id=$id
+                """, ("$id", requestId));
+            using var r = cmd.ExecuteReader();
+            if (!r.Read()) throw new InvalidDataException("LateRequestMissing");
+            attempt = new(requestId, r.GetString(0), r.GetInt32(1),
+                new(r.GetString(4), r.GetString(5), r.GetString(7), r.GetString(6), r.GetString(8), r.GetString(9), r.GetString(10), r.GetString(11)),
+                SettingsStore.Connection(db, null, r.GetString(3)) ?? throw new InvalidDataException("LateConnectionMissing"), r.GetString(2));
+        }
+        SaveLate(attempt, reply);
     }
     private void Block(SqliteConnection db, SqliteTransaction tx, string id, string reason, DateTimeOffset? until) => Execute(db, tx,
         "INSERT INTO connection_blocks VALUES($id,$e,$u,$n) ON CONFLICT(connection_id) DO UPDATE SET reason=excluded.reason,until_utc=excluded.until_utc,updated_utc=excluded.updated_utc",

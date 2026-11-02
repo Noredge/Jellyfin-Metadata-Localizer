@@ -239,12 +239,18 @@ public sealed class UnifiedController(UnifiedRuntime runtime) : ControllerBase
     [HttpPost("submit")]
     public Task<ActionResult> Submit(UnifiedSubmitRequest request) => Guard(async () =>
     {
-        string json;
+        if (runtime.Work.TryReplayPreview(request.CommandId, request.PreviewId) is { } committed) return committed;
+        string json, expires;
         using (var db = runtime.Database.Open())
-            json = Scalar<string>(db, null, "SELECT summary_json FROM previews WHERE id=$id AND expires_utc>$n", ("$id", request.PreviewId), ("$n", Now())) ?? throw new InvalidOperationException("PreviewExpired");
+        {
+            using var cmd = Command(db, null, "SELECT summary_json,expires_utc FROM previews WHERE id=$id", ("$id", request.PreviewId));
+            using var r = cmd.ExecuteReader(); if (!r.Read()) throw new InvalidOperationException("PreviewExpired");
+            json = r.GetString(0); expires = r.GetString(1);
+        }
         var preview = JsonSerializer.Deserialize<UnifiedPreview>(json)!;
         var kind = preview.Force ? "retranslate" : "fill";
-        if (runtime.Work.TryReplay(request.CommandId, kind, preview.SettingsRevision, preview.Targets.Select(x => (x.MediaId, x.Field)).ToArray(), preview.Force) is { } replay) return replay;
+        if (runtime.Work.TryReplay(request.CommandId, kind, preview.SettingsRevision, preview.Targets.Select(x => (x.MediaId, x.Field)).ToArray(), preview.Force, previewId: request.PreviewId) is { } replay) return replay;
+        if (DateTimeOffset.Parse(expires, System.Globalization.CultureInfo.InvariantCulture) <= DateTimeOffset.UtcNow) throw new InvalidOperationException("PreviewExpired");
         var seeds = new List<WorkSeed>();
         foreach (var target in preview.Targets)
         {
@@ -255,7 +261,7 @@ public sealed class UnifiedController(UnifiedRuntime runtime) : ControllerBase
             if (!actual.Present || actual.SourceError is not null || Hash(actual.Display) != target.ExpectedDisplayHash) throw new InvalidOperationException("RevisionConflict");
             seeds.Add(new(current, actual.Display));
         }
-        var receipt = runtime.Work.Submit(request.CommandId, kind, preview.SettingsRevision, [.. seeds], preview.Force);
+        var receipt = runtime.Work.Submit(request.CommandId, kind, preview.SettingsRevision, [.. seeds], preview.Force, previewId: request.PreviewId);
         runtime.Notify(); return receipt;
     });
     [HttpGet("work")]

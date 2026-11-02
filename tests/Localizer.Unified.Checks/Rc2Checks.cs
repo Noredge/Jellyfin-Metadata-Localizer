@@ -105,7 +105,9 @@ internal static class Rc2Checks
             f.Database.Write((db, tx) => Execute(db, tx, "INSERT INTO person_name_rules VALUES($id,'Bob','乙',NULL,'[]',1,'{}')", ("$id", Id())));
             var work = f.Submit([media], ["Name"]).WorkIds.Single(); await f.Drain();
             check("legacy ambiguity fails before any model request or display write", f.Transport.Calls == 0 && f.Host.Writes == 0 && f.Work.Find(work) is { State: "failed", Error: "person_alias_conflict" } && config.People().Length == 2);
-            config.SavePerson(alpha, 1, "Alpha", "甲", null, []); f.Work.Retry(work); await f.Drain();
+            config.SavePerson(alpha, 1, "Alpha", "甲", null, []);
+            f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply("乙的旅行", HttpStatus: 200)); };
+            f.Work.Retry(work); await f.Drain();
             check("correcting legacy ambiguity allows safe retry", f.Transport.Calls == 1 && f.Host.Get(f.Key(media), "Name").Display.Contains("乙", StringComparison.Ordinal) && !f.Host.Get(f.Key(media), "Name").Display.Contains("甲", StringComparison.Ordinal));
             var history = f.Count("SELECT COUNT(*) FROM translation_versions");
             f.Database.Write((db, tx) => Execute(db, tx, "UPDATE person_name_rules SET aliases_json='[\"Bob\"]' WHERE id=$id", ("$id", alpha)));
@@ -123,7 +125,7 @@ internal static class Rc2Checks
             config.SavePerson(alice, 1, "Alice", "甲", null, []);
             var work = f.Submit([media], ["Name"]).WorkIds.Single(); await f.Drain();
             check("ambiguous historical display names never guess identities while rerendering", f.Transport.Calls == 1 && f.Host.Get(f.Key(media), "Name").Display == original
-                && f.Work.Find(work) is { State: "failed", Error: "person_alias_conflict" } && f.Count("SELECT COUNT(*) FROM translation_versions") == versions);
+                && f.Work.Find(work) is { State: "failed", Error: "person_template_required" } && f.Count("SELECT COUNT(*) FROM translation_versions") == versions);
         }
         foreach (var (text, name, expected) in new[] {
             ("The Anniversary", "Ann", false), ("Air", "Ai", false), ("Ann, Bob", "Ann", true),

@@ -8,10 +8,11 @@ public sealed record OverviewTranslationInput(string Prompt, ProtectedTitle Prot
 public sealed record OverviewTranslationOutput(string? Text, string? Error,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProviderDiagnostics? Diagnostics = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] TranslationValidation? Validation = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string[]? Warnings = null);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string[]? Warnings = null,
+    string? NameTemplate = null);
 public static class OverviewPipeline
 {
-    public const string Version = "overview-full-v4-name-boundaries";
+    public const string Version = "overview-full-v5-name-template";
     public static OverviewTranslationInput Prepare(string source, TargetLanguage language, IEnumerable<string> names)
     {
         MetadataText.ValidateOverview(source);
@@ -64,11 +65,12 @@ public static class OverviewPipeline
                 { MissingNameTokens = missing, DuplicateNameTokens = duplicate, UnexpectedNameTokens = unexpected });
             }
             var warnings = NumericEquivalence.SameNumbers(input.Protection.MaskedSource, result) ? Array.Empty<string>() : ["NumberMismatch"];
+            var template = result;
             result = Regex.Replace(result, "__JML_PERSON_[A-Z]+__", x => input.Protection.Mapping[x.Value]);
             if (result.Contains("__JML_", StringComparison.OrdinalIgnoreCase)) return Fail("overview_unresolved_marker");
             MetadataText.ValidateOverview(result);
             return new(result, null, Validation: TranslationValidation.Content("content", "overview_accepted", finalText) with
-                { PromptVersion = input.PromptVersion, ActualFields = fields.Length > 1 ? names : null }, Warnings: warnings);
+                { PromptVersion = input.PromptVersion, ActualFields = fields.Length > 1 ? names : null }, Warnings: warnings, NameTemplate: template);
         }
         catch (JsonException error)
         { return Fail("overview_invalid_json", detail: TranslationValidation.Content("content", "overview_invalid_json", finalText) with

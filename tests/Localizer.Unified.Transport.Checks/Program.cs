@@ -52,13 +52,18 @@ GenerationInput Input(string field) => new("i", "s", field, "zh-Hans", field == 
     "[{\"original\":\"Alice\",\"replacement\":\"爱丽丝\",\"aliases\":[],\"revision\":1}]", "{\"protected_names\":[\"Alice\"]}");
 var reply = await transport.GenerateAsync(Input("Name"), connection, () => marked++, CancellationToken.None);
 Check("title parsing restores frozen person mapping and accepts numeric variation diagnostically", reply.Text == "爱丽丝归来第2次" && reply.Error is null && reply.Usage?.TotalTokens == 20);
+Check("title result retains verified name template", reply.PersonTemplate is not null && reply.PersonTemplate.Frozen() == reply.Text && reply.PersonTemplate.Slots.Single().Original == "Alice");
 Check("request excludes raw credential and uses masked source", body is not null && !body.Contains("FIXTURE_KEY", StringComparison.Ordinal) && body.Contains("__JML_PERSON_A__", StringComparison.Ordinal));
+var personIdentity = Guid.NewGuid().ToString("N");
+reply = await transport.GenerateAsync(Input("Name") with { NamesJson = JsonSerializer.Serialize(new[] { new { id = personIdentity, original = "Alice", replacement = "爱丽丝", aliases = Array.Empty<string>(), revision = 1 } }) }, connection, () => marked++, CancellationToken.None);
+Check("transport retains stable person identity as well as legacy inputs without ids", reply.Error is null && reply.PersonTemplate?.Slots.Single().PersonId == personIdentity);
 mode = "bad-model"; reply = await transport.GenerateAsync(Input("Name"), connection with { Model = "embedding-fixture" }, () => marked++, CancellationToken.None);
 Check("selected non-translation model reaches existing provider error handling", reply.HttpStatus == 400 && reply.Error == "configuration" && !reply.NotSent && body!.Contains("embedding-fixture", StringComparison.Ordinal) && !JsonSerializer.Serialize(reply).Contains("SECRET_RAW_ERROR", StringComparison.Ordinal));
 mode = "unchanged"; reply = await transport.GenerateAsync(Input("Name") with { Language = "en", Text = unchanged, NamesJson = "[]", ContextJson = "{}" }, connection, () => marked++, CancellationToken.None);
 Check("English output containing unchanged Japanese stays usable with diagnostics only", reply.Error is null && reply.Text == unchanged && reply.Diagnostics?.Warnings?.Contains("SourceTextUnchanged") == true);
 mode = "overview"; reply = await transport.GenerateAsync(Input("Overview"), connection, () => marked++, CancellationToken.None);
 Check("overview shares transport and frozen person rendering", reply.Text == "人物爱丽丝回来了。" && reply.Error is null);
+Check("overview result retains verified name template", reply.PersonTemplate is not null && reply.PersonTemplate.Frozen() == reply.Text && reply.PersonTemplate.Text == "人物__JML_PERSON_A__回来了。");
 var small = connection with { ParametersJson = "{\"MaxOutputTokens\":512,\"TokenParameter\":\"max_completion_tokens\"}" };
 reply = await transport.GenerateAsync(Input("Overview"), small, () => marked++, CancellationToken.None);
 Check("legacy 512 common limit gives overview an independent 4096 ceiling", JsonDocument.Parse(body!).RootElement.GetProperty("max_completion_tokens").GetInt32() == 4096 && reply.Diagnostics?.OutputTokenLimit == 4096);
@@ -95,8 +100,8 @@ foreach (var field in new[] { "Name", "Overview", "Term" })
         && !prompt.Contains("supplied Japanese", StringComparison.Ordinal) && !prompt.Contains("Japanese-style calques", StringComparison.Ordinal)
         && (field == "Term" || reply.Text == "爱丽丝 returns home."));
 }
-Check("all changed prompts have a new request fingerprint", transport.PromptVersion("Name", "en").StartsWith("unified-title-v3-name-boundaries/", StringComparison.Ordinal)
-    && transport.PromptVersion("Overview", "en") == "unified/overview-full-v4-name-boundaries"
+Check("all changed prompts have a new request fingerprint", transport.PromptVersion("Name", "en").StartsWith("unified-title-v4-name-template/", StringComparison.Ordinal)
+    && transport.PromptVersion("Overview", "en") == "unified/overview-full-v5-name-template"
     && transport.PromptVersion("Term", "en") == "unified/genre-dictionary-v3-source-language");
 var callsBeforeStalePrompt = calls;
 reply = await transport.GenerateAsync(Input("Name") with { PromptVersion = "unified-title-v1/rules-v1" }, connection, () => marked++, CancellationToken.None);

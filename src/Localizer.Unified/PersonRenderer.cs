@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Localizer.Core;
 using static Localizer.Unified.UnifiedDatabase;
@@ -8,44 +7,45 @@ namespace Localizer.Unified;
 
 internal static class PersonRenderer
 {
+    private sealed record Rule(string Id, string Original, string Display, string[] Aliases);
     internal static string Render(SqliteConnection db, SqliteTransaction? tx, string versionId, string language)
     {
-        string text, source, origin; string? input;
-        using (var cmd = Command(db, tx, "SELECT t.text,s.content,t.origin,i.names_json FROM translation_versions t JOIN source_versions s ON s.id=t.source_id LEFT JOIN generation_inputs i ON i.id=t.input_id WHERE t.id=$id", ("$id", versionId)))
-        using (var r = cmd.ExecuteReader()) { if (!r.Read()) throw new InvalidOperationException("TranslationMissing"); text = r.GetString(0); source = r.GetString(1); origin = r.GetString(2); input = r.IsDBNull(3) ? null : r.GetString(3); }
+        string text, origin, provenance; string? input;
+        using (var cmd = Command(db, tx, "SELECT t.text,t.origin,i.names_json,t.provenance_json FROM translation_versions t LEFT JOIN generation_inputs i ON i.id=t.input_id WHERE t.id=$id", ("$id", versionId)))
+        using (var r = cmd.ExecuteReader()) { if (!r.Read()) throw new InvalidOperationException("TranslationMissing"); text = r.GetString(0); origin = r.GetString(1); input = r.IsDBNull(2) ? null : r.GetString(2); provenance = r.GetString(3); }
         if (origin is "manual" or "dictionary") return text;
-        var current = new Dictionary<string, (string Value, string[] Aliases)>(StringComparer.Ordinal);
-        using (var cmd = Command(db, tx, "SELECT original,zh_name,en_name,aliases_json FROM person_name_rules ORDER BY original"))
+        var rules = new List<Rule>();
+        using (var cmd = Command(db, tx, "SELECT id,original,zh_name,en_name,aliases_json FROM person_name_rules"))
         using (var r = cmd.ExecuteReader()) while (r.Read())
+            rules.Add(new(r.GetString(0), r.GetString(1), r.IsDBNull(language == "en" ? 3 : 2) ? r.GetString(1) : r.GetString(language == "en" ? 3 : 2), JsonSerializer.Deserialize<string[]>(r.GetString(4))!));
+        string Resolve(string original, string? id)
         {
-            var aliases = JsonSerializer.Deserialize<string[]>(r.GetString(3))!; var name = r.GetString(0);
-            if (PersonNameMatching.Contains(source, name) || aliases.Any(a => PersonNameMatching.Contains(source, a))) current[name] = (r.IsDBNull(language == "en" ? 2 : 1) ? name : r.GetString(language == "en" ? 2 : 1), aliases);
+            var candidates = rules.Where(x => id is not null ? x.Id == id : x.Original == original || x.Aliases.Contains(original, StringComparer.Ordinal)).ToArray();
+            if (candidates.Length > 1) throw new PersonAliasConflictException();
+            return candidates.SingleOrDefault()?.Display ?? original;
         }
-        var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
-        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var (original, rule) in current)
+        using var record = JsonDocument.Parse(provenance);
+        if (record.RootElement.TryGetProperty("person_template", out var metadata))
         {
-            foreach (var name in rule.Aliases.Prepend(original).Distinct(StringComparer.Ordinal))
-            {
-                if (!owners.TryAdd(name, original) && owners[name] != original) throw new PersonAliasConflictException();
-                replacements.TryAdd(name, rule.Value);
-            }
+            var template = metadata.Deserialize<PersonTextTemplate>() ?? throw new PersonTemplateException();
+            if (template.Frozen() != text) throw new PersonTemplateException();
+            return template.Render(slot => Resolve(slot.Original, slot.PersonId));
         }
+        // Historical plain text has no trustworthy name positions. Never replace substrings
+        // in it: even a Chinese name can also occur inside an ordinary word.
         if (input is not null)
         {
             using var snapshot = JsonDocument.Parse(input);
-            foreach (var item in snapshot.RootElement.EnumerateArray())
+            foreach (var name in snapshot.RootElement.EnumerateArray())
             {
-                var original = item.GetProperty("original").GetString()!; var old = item.GetProperty("replacement");
-                if (old.ValueKind == JsonValueKind.String && old.GetString() is { Length: > 0 } value)
-                {
-                    var desired = current.TryGetValue(original, out var rule) ? rule.Value : original;
-                    if (!replacements.TryAdd(value, desired) && replacements[value] != desired && PersonNameMatching.Contains(text, value))
-                        throw new PersonAliasConflictException();
-                }
+                var original = name.GetProperty("original").GetString()!;
+                if (rules.Count(x => x.Original == original || x.Aliases.Contains(original, StringComparer.Ordinal)) > 1) throw new PersonAliasConflictException();
+                var frozen = name.GetProperty("replacement");
+                var old = frozen.ValueKind == JsonValueKind.String ? frozen.GetString()! : original;
+                var id = name.TryGetProperty("id", out var key) ? key.GetString() : null;
+                if (old != Resolve(original, id) && PersonNameMatching.Contains(text, old)) throw new PersonTemplateException(required: true);
             }
         }
-        var tokens = replacements.Where(x => x.Key != x.Value && PersonNameMatching.Contains(text, x.Key)).OrderByDescending(x => x.Key.Length).Select(x => PersonNameMatching.Pattern(x.Key)).ToArray();
-        return tokens.Length == 0 ? text : Regex.Replace(text, string.Join('|', tokens), match => replacements[match.Value], RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        return text;
     }
 }

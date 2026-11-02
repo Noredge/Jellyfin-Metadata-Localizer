@@ -4,7 +4,7 @@ Stop Jellyfin before filesystem backup or restore. Preserve the plugin version t
 
 ## Unified plugin data
 
-Back up the entire `data/metadata-localizer-v2` directory, including `metadata-localizer.db`, any `-wal`, `-shm` or `-journal` files, encrypted credentials and worker-lock file. Do not select only the main DB while a WAL exists. Keys remain bound to the Windows account and endpoint.
+Back up the entire `data/metadata-localizer-v2` directory, including `metadata-localizer.db`, any `-wal`, `-shm` or `-journal` files, encrypted credentials, worker-lock file and any `late-responses` directory. The latter holds validated late responses awaiting database persistence; retain it with the paired data so recovery needs no provider resend. Do not select only the main DB while a WAL exists. Keys remain bound to the Windows account and endpoint.
 
 The ZIP includes `tools/Localizer-DataBackup.py` (Python 3.12+, standard library). Supply absolute paths, using the actual server data location:
 

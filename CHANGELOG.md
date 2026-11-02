@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-rc.3
+
+- Store verified person placeholders with new model results and rerender only those positions. Identical display names keep their own identities; ordinary words are never globally replaced. Historical plain text is preserved, with an actionable repair error when changed rules cannot be applied safely.
+- Persist late responses to an atomic local outbox before database insertion. Retry storage with bounded backoff and recover on startup without another provider send; retain unknown-request evidence and keep late results history-only.
+- Atomically bind committed submissions to their previews, so receipt replay survives preview expiry, cleanup and restart. Keep expiry checks for first submissions and reject command reuse with another preview.
+- Preserve the schema definition, existing translations, local rules, credentials and plugin identity. Validation uses synthetic provider responses only.
+
 ## 1.0.0-rc.2
 
 - Keep unknown-outcome consent bound to the source and target language across prompt, model, person-rule and epoch changes. An indexed lookup and explicit acknowledgement preserve all earlier request evidence.

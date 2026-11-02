@@ -63,7 +63,8 @@ internal static class ExecutorConfigurationChecks
         {
             var m = f.Add("Alice"); var config = new ConfigurationStore(f.Database); var id = Id(); var rule = config.SavePerson(id, 0, "Alice", "阿莉", "Alice", ["ALICE"]);
             f.Host.Change(f.Key(m), "Name", x => x with { PersonNames = ["Alice", "Unrelated Actor"] });
-            f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply("阿莉的旅行", HttpStatus: 200)); };
+            f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply("阿莉的旅行", HttpStatus: 200,
+                PersonTemplate: new(1, "__JML_PERSON_A__的旅行", [new("__JML_PERSON_A__", "Alice", "阿莉", id)]))); };
             f.Submit([m], ["Name"]); await f.Drain(); var source = f.Content.ReadField(m, "Name")!; var saved = f.Content.Selected(source.SourceId, "zh-Hans")!;
             check("request input keeps only needed people and protection names", f.Transport.Inputs.Single().NamesJson.Contains("Alice", StringComparison.Ordinal) && !f.Transport.Inputs.Single().ContextJson.Contains("Unrelated Actor", StringComparison.Ordinal));
             config.SavePerson(id, rule.Revision, "Alice", "阿力", "Alice", ["ALICE"]); f.Submit([m], ["Name"]); await f.Drain();

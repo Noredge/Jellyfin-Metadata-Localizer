@@ -5,6 +5,7 @@ using static Localizer.Unified.UnifiedDatabase;
 
 if (args.Length == 2 && args[0] == "--read") { ReadModelChecks.Run(args[1]); return; }
 if (args.Length == 2 && args[0] == "--executor") { await ExecutorChecks.Run(args[1]); return; }
+if (args.Length == 2 && args[0] == "--rc3") { Directory.CreateDirectory(args[1]); await Rc3Checks.Run(args[1], (name,ok)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(!ok)throw new InvalidOperationException(name);});return; }
 if (args.Length == 2 && args[0] == "--private22") { await Private22Checks.Run(args[1], (name,ok)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(!ok)throw new InvalidOperationException(name);});return; }
 if (args.Length == 2 && args[0] == "--private21") { await Private21Checks.Run(args[1], (name,ok)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(!ok)throw new InvalidOperationException(name);});return; }
 if (args.Length == 2 && args[0] == "--private20") { await Private20Checks.Run(args[1], (name,ok)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(!ok)throw new InvalidOperationException(name);});return; }

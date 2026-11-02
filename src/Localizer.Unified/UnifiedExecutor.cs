@@ -13,6 +13,8 @@ public sealed class UnifiedExecutor : IDisposable
     private readonly IUnifiedHost host;
     private readonly IUnifiedTransport transport;
     private readonly RequestStore requests;
+    private readonly LateResponseOutbox lateResponses;
+    private bool recoveringLate;
     private readonly DisplayExecutor display;
     private readonly Action<string, UnifiedWork>? checkpoint;
     private readonly SemaphoreSlim operation = new(1, 1);
@@ -32,7 +34,8 @@ public sealed class UnifiedExecutor : IDisposable
         this.work = work; content = new(work.Database); this.host = host; this.transport = transport; this.checkpoint = checkpoint;
         ownership = new FileStream(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(work.Database.Path)!, "metadata-localizer.worker.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         requests = new(work, checkpoint); display = new(work, host, checkpoint);
-        try { requests.Recover(); work.AdmitDisplayIntents(); } catch { ownership.Dispose(); throw; }
+        lateResponses = new(System.IO.Path.GetDirectoryName(work.Database.Path)!);
+        try { requests.Recover(); work.AdmitDisplayIntents(); recoveringLate = lateResponses.HasPending; } catch { ownership.Dispose(); throw; }
     }
     public Task<bool> RunNextAsync(CancellationToken token = default) => RunNextAsync(token, null);
     public async Task<bool> RunNextAsync(CancellationToken token, Action<ExecutionDiagnostic>? reportFailure)
@@ -43,6 +46,17 @@ public sealed class UnifiedExecutor : IDisposable
         UnifiedWork? w = null;
         try
         {
+            if (recoveringLate)
+            {
+                currentStage = "late_response_recovery";
+                try
+                {
+                    if (lateResponses.ReadNext() is { } entry)
+                    { requests.SaveLate(entry.RequestId, entry.Reply); lateResponses.Remove(entry.RequestId); return true; }
+                    recoveringLate = false; Volatile.Write(ref backgroundError, null);
+                }
+                catch { Volatile.Write(ref backgroundError, "late_history_persistence_failed"); throw; }
+            }
             if (interrupted is { } recovery)
             {
                 currentStage = "recovery";
@@ -60,6 +74,8 @@ public sealed class UnifiedExecutor : IDisposable
         }
         catch (Localizer.Core.PersonAliasConflictException) when (w is not null)
         { work.SetState(w.Id, "failed", w.Step, issue: "translation", error: "person_alias_conflict"); return true; }
+        catch (Localizer.Core.PersonTemplateException error) when (w is not null)
+        { work.SetState(w.Id, "failed", w.Step, issue: "translation", error: error.Code); return true; }
         catch (Exception error)
         {
             var failure = ExecutionDiagnostic.Capture(currentStage, w?.Id ?? interrupted?.Id, error);
@@ -245,8 +261,27 @@ public sealed class UnifiedExecutor : IDisposable
     }
     private async Task SaveLateAsync(Task<GenerationReply> task, RequestAttempt attempt)
     {
-        try { requests.SaveLate(attempt, await task); }
-        catch (Exception error) { LastFailure = ExecutionDiagnostic.Capture("late_response_save", attempt.WorkId, error); Volatile.Write(ref backgroundError, "late_history_persistence_failed"); }
+        var reply = await task; var spooled = false; var delayMs = 250;
+        while (true)
+        {
+            try
+            {
+                if (!spooled) { lateResponses.Store(attempt.Id, reply); spooled = true; }
+                requests.SaveLate(attempt, reply); lateResponses.Remove(attempt.Id);
+                Volatile.Write(ref backgroundError, null); work.Database.WorkAvailable.Notify(); return;
+            }
+            catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or JsonException or Localizer.Core.PersonTemplateException)
+            {
+                LastFailure = ExecutionDiagnostic.Capture("late_response_save", attempt.WorkId, error);
+                Volatile.Write(ref backgroundError, "late_history_persistence_failed");
+                // A durable copy transfers recovery to the next process on shutdown. Until
+                // then retain the response and the single-send ownership, retrying only storage.
+                if (spooled && shutdown.IsCancellationRequested) return;
+                try { await Task.Delay(delayMs, spooled ? shutdown.Token : CancellationToken.None); }
+                catch (OperationCanceledException) when (spooled && shutdown.IsCancellationRequested) { return; }
+                delayMs = Math.Min(delayMs * 2, 8000);
+            }
+        }
     }
     public void Dispose()
     {

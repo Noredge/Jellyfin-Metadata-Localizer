@@ -22,7 +22,7 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
     }
     public string PromptVersion(string field, string language) => field switch
     {
-        "Name" => "unified-title-v3-name-boundaries/" + rules(language).Version,
+        "Name" => "unified-title-v4-name-template/" + rules(language).Version,
         "Overview" => "unified/" + OverviewPipeline.Version,
         "Term" => "unified/" + GenreTranslationPipeline.Version,
         _ => throw new ArgumentException("InvalidGenerationField")
@@ -71,6 +71,7 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
             if (tokenParameter is not ("max_tokens" or "max_completion_tokens") || Maximum(1024) is < 64 or > 32768 || OverviewMaximum() is < 64 or > 32768
                 || reasoning is not (null or "none" or "minimal" or "low" or "medium" or "high")) return Fail("invalid_parameters", "configuration");
             var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
+            var personIds = new Dictionary<string, string>(StringComparer.Ordinal);
             var owners = new Dictionary<string, string>(StringComparer.Ordinal);
             using (var names = JsonDocument.Parse(input.NamesJson)) foreach (var name in names.RootElement.EnumerateArray())
             {
@@ -80,6 +81,7 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
                 {
                     if (!owners.TryAdd(alias, original) && owners[alias] != original) throw new PersonAliasConflictException();
                     replacements.TryAdd(alias, translated);
+                    if (name.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String) personIds[alias] = id.GetString()!;
                 }
             }
             using (var context = JsonDocument.Parse(input.ContextJson)) if (context.RootElement.TryGetProperty("protected_names", out var names))
@@ -88,8 +90,11 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
             ProtectedTitle Decorate(ProtectedTitle protection) => protection with
             {
                 DisplayNames = protection.Mapping.ToDictionary(x => x.Key, x => replacements.GetValueOrDefault(x.Value, x.Value)),
-                PersonIds = protection.Mapping.ToDictionary(x => x.Key, _ => ""), NameRevision = 0
+                PersonIds = protection.Mapping.ToDictionary(x => x.Key, x => personIds.GetValueOrDefault(x.Value, "")), NameRevision = 0
             };
+            static PersonTextTemplate Template(string text, ProtectedTitle protection) => new(1, text,
+                protection.Mapping.Select(x => new PersonTextSlot(x.Key, x.Value, protection.DisplayNames!.GetValueOrDefault(x.Key, x.Value),
+                    protection.PersonIds!.GetValueOrDefault(x.Key) is { Length: > 0 } id ? id : null)).ToArray());
             TitleProviderRequest? titleRequest = null; OverviewTranslationInput? overview = null; GenreTranslationTerm[]? terms = null;
             string prompt, payload; int budget;
             if (input.Field == "Name")
@@ -144,17 +149,19 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
             var msg = choice.GetProperty("message");
             if (finish == "content_filter" || msg.TryGetProperty("refusal", out var refusal) && refusal.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(refusal.GetString())) return Fail("provider_refusal", "refusal");
             if (finish != "stop") return Fail("incomplete_output", "output_budget");
-            stage = "content"; string? text, errorCode; string[]? warnings;
+            stage = "content"; string? text, errorCode; string[]? warnings; PersonTextTemplate? template = null;
             if (titleRequest is not null)
             {
                 var result = TitlePipeline.Parse(raw, titleRequest, allowModelAlias: true);
                 text = result.Title; errorCode = result.ErrorCategory; warnings = result.Warnings;
+                if (result.NameTemplate is not null) template = Template(result.NameTemplate, JsonSerializer.Deserialize<ProtectedTitle>(titleRequest.Spec.ContextJson)!);
             }
             else if (overview is not null)
             {
                 var result = OverviewPipeline.Parse(msg.GetProperty("content").GetString()!, overview with
                     { Protection = overview.Protection with { Mapping = overview.Protection.DisplayNames! } });
                 text = result.Text; errorCode = result.Error; warnings = result.Warnings; validation = result.Validation;
+                if (result.NameTemplate is not null) template = Template(result.NameTemplate, overview.Protection);
             }
             else
             {
@@ -162,9 +169,10 @@ public sealed class UnifiedCompatibleTransport : IUnifiedTransport, IUnifiedMode
                 var candidate = result.Candidates.SingleOrDefault(); text = candidate?.Text; errorCode = result.Error ?? candidate?.Error; warnings = candidate?.Warnings;
             }
             if (errorCode is not null || string.IsNullOrWhiteSpace(text)) return Fail("invalid_translated_content", errorCode is "refusal" or "Refused" ? "refusal" : errorCode == "output_budget" ? "output_budget" : "invalid_output");
+            if (template is not null && template.Frozen() != text) return Fail("person_template_invalid");
             return new(text, HttpStatus: provider.HttpStatus, Diagnostics: new(stage, "usable", raw.Length, UnifiedDatabase.Hash(raw), finish, warnings,
                 validation is null ? null : JsonSerializer.SerializeToElement(validation), outputLimit),
-                Usage: new(provider.PromptTokens, provider.CompletionTokens, provider.TotalTokens));
+                Usage: new(provider.PromptTokens, provider.CompletionTokens, provider.TotalTokens), PersonTemplate: template);
         }
         catch (PersonAliasConflictException) { return Fail("person_alias_conflict", "person_alias_conflict"); }
         catch (ExecutionSupersededException) { throw; }

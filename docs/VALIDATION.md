@@ -1,5 +1,15 @@
 # Validation
 
+## Release candidate: 1.0.0-rc.3
+
+Added regressions exercise verified name slots, ordinary words containing a translated name, identical frozen names, renamed/deleted rules and unchanged historical plain text. Injected HTTP tests verify that both title and synopsis parsers retain usable templates.
+
+Late-result checks hold a real SQLite write lock beyond the busy timeout, verify a durable response file, then recover by storage retry or executor restart. The original unknown evidence remains, no result is automatically displayed, and replaying a durable copy cannot create another translation or provider request. Invalid response files are retained with degraded health. Atomic temporary-file publication cannot protect a response that has not yet reached durable storage before forced process termination or disk failure.
+
+Receipt checks cover preview deletion, restart, changed settings, cancellation, command conflicts and transaction rollback. Native HTTP checks additionally cover expired first submissions, expired committed receipts, legacy binding and actual Jellyfin restart. Older unbound receipts can be verified while their original preview still exists; once an older preview was already deleted, its association cannot be reconstructed safely.
+
+Full-data startup and paired rollback are checked separately from synthetic media tests. The database schema definition remains unchanged; no existing translations or rules are rewritten. Real provider calls and a 24-48 hour soak are not part of this validation.
+
 ## Release candidate: 1.0.0-rc.2
 
 The automated gate contains 819 checks. Added executor regressions preserve unknown-outcome consent across restart, prompt/model/person changes and a return to the original target language. Replacement media and shared-term tasks without their own attempt cannot bypass acknowledgement; explicit consent permits one new send while preserving the original evidence. Other fields and languages remain independent. Display-only retries and selected-cache reuse do not require or clear consent; any later generation still checks it at request preparation.
