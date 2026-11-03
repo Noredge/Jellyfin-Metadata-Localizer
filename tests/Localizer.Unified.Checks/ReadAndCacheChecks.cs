@@ -4,11 +4,11 @@ using Localizer.Unified;
 using Microsoft.Data.Sqlite;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private22Checks
+internal static class ReadAndCacheChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
-        using (var f = new ExecutorFixture(Path.Combine(root, "p22-read-pool")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "reads-read-pool")))
         {
             var media = f.Add("pool"); var wake = f.Database.WorkAvailable.Version;
             using (var db = f.Database.OpenRead())
@@ -37,7 +37,7 @@ internal static class Private22Checks
             check("pool release supports subsequent fresh reads",f.Content.ReadField(media,"Name") is not null);
             f.Database.ReleaseReadPool();
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p22-detail-search-fill")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "reads-detail-search-fill")))
         {
             var a=f.Add("Case-Search","source synopsis A","shared"); var b=f.Add("second","","shared");
             var state=f.Content.ReadField(a,"Name")!;var selected=f.Content.SaveManual(state,"zh-Hans","selected title",true,"before",Id());
@@ -70,7 +70,7 @@ internal static class Private22Checks
             check("reader optimizations never send model requests",f.Transport.Calls==0 && f.Count("SELECT COUNT(*) FROM request_attempts")==0);
             f.Database.ReleaseReadPool();
         }
-        var folder=Path.Combine(root,"p22-nfo-session");Directory.CreateDirectory(folder);var mediaPath=Path.Combine(folder,"clip.mp4");File.WriteAllBytes(mediaPath,[]);var nfo=Path.ChangeExtension(mediaPath,".nfo");
+        var folder=Path.Combine(root,"reads-nfo-session");Directory.CreateDirectory(folder);var mediaPath=Path.Combine(folder,"clip.mp4");File.WriteAllBytes(mediaPath,[]);var nfo=Path.ChangeExtension(mediaPath,".nfo");
         File.WriteAllText(nfo,"<movie><plot>one</plot><genre>genre</genre></movie>");
         using(var timing=new OperationTimings())
         {

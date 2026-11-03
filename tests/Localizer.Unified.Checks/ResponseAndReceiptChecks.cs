@@ -3,16 +3,16 @@ using Localizer.Core;
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Rc3Checks
+internal static class ResponseAndReceiptChecks
 {
     private static async Task Until(Func<bool> condition, int milliseconds = 12000)
     {
         var end = DateTime.UtcNow.AddMilliseconds(milliseconds);
-        while (!condition()) { if (DateTime.UtcNow >= end) throw new TimeoutException("RC3 condition"); await Task.Delay(25); }
+        while (!condition()) { if (DateTime.UtcNow >= end) throw new TimeoutException("response persistence condition"); await Task.Delay(25); }
     }
     internal static async Task Run(string root, Action<string, bool> check)
     {
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc3-name-slots")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "response-name-slots")))
         {
             var media = f.Add("Ai", "Aiの物語"); var config = new ConfigurationStore(f.Database); var id = Id();
             config.SavePerson(id, 0, "Ai", "爱", null, []);
@@ -26,7 +26,7 @@ internal static class Rc3Checks
             config.DeletePerson(id, 2); f.Submit([media], ["Overview"]); await f.Drain();
             check("deleted person rule falls back only inside its protected slot", f.Host.Get(f.Key(media), "Overview").Display == "关于爱情的故事，Ai归来" && f.Transport.Calls == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc3-legacy-name")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "response-legacy-name")))
         {
             var media = f.Add("Ai", "Aiの物語"); var config = new ConfigurationStore(f.Database); var id = Id();
             config.SavePerson(id, 0, "Ai", "爱", null, []);
@@ -37,7 +37,7 @@ internal static class Rc3Checks
             check("legacy plain text remains intact and requests explicit repair after a name edit", f.Host.Get(f.Key(media), "Overview").Display == "关于爱情的故事，爱归来"
                 && f.Work.Find(work) is { State: "failed", Error: "person_template_required" } && f.Transport.Calls == 1 && f.Count("SELECT COUNT(*) FROM translation_versions") == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc3-identical-names")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "response-identical-names")))
         {
             var media = f.Add("Alice Bob"); var config = new ConfigurationStore(f.Database); var alice = Id(); var bob = Id();
             config.SavePerson(alice, 0, "Alice", "同名", null, []); config.SavePerson(bob, 0, "Bob", "同名", null, []);
@@ -58,7 +58,7 @@ internal static class Rc3Checks
             var denied = false; try { template.Frozen(); } catch (PersonTemplateException) { denied = true; }
             check("invalid missing duplicated or mismatched slots fail closed: " + template.Text, denied);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc3-preview-receipt")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "response-preview-receipt")))
         {
             var media = f.Add("receipt"); var command = Id(); var preview = Id(); var revision = f.Settings.Read().Revision;
             var receipt = f.Work.Submit(command, "fill", revision, [f.Seed(media, "Name")], previewId: preview);
@@ -85,7 +85,7 @@ internal static class Rc3Checks
             check("legacy receipt can atomically gain a verified preview binding", bound?.Id == old.Id && f.Work.TryReplayPreview(legacy, legacyPreview)?.Id == old.Id);
         }
         foreach (var restart in new[] { false, true })
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc3-late-storage-" + restart), timeout: 1000))
+        using (var f = new ExecutorFixture(Path.Combine(root, "response-late-storage-" + restart), timeout: 1000))
         {
             var media = f.Add("late"); var result = new TaskCompletionSource<GenerationReply>(TaskCreationOptions.RunContinuationsAsynchronously);
             f.Transport.Handler = (_, send, _) => { send(); return result.Task; };
@@ -110,7 +110,7 @@ internal static class Rc3Checks
             File.WriteAllBytes(spoolFile, spoolBytes); f.Restart(); await f.Drain();
             check("replayed durable copy after commit is idempotent: " + restart, f.Transport.Calls == 1 && f.Count("SELECT COUNT(*) FROM translation_versions") == 1 && Directory.GetFiles(directory, "*.json").Length == 0);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc3-invalid-spool")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "response-invalid-spool")))
         {
             var directory = Path.Combine(f.Root, "late-responses"); Directory.CreateDirectory(directory); var file = Path.Combine(directory, Id() + ".json"); File.WriteAllText(file, "{broken"); f.Restart();
             var denied = false; try { await f.Executor.RunNextAsync(); } catch (JsonException) { denied = true; }

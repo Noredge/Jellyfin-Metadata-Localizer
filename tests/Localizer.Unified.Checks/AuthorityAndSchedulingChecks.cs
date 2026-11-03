@@ -3,14 +3,14 @@ using System.Text.Json;
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private21Checks
+internal static class AuthorityAndSchedulingChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
         foreach (var change in new[] { "manual", "disabled", "library", "removed", "source", "cancelled", "language", "automatic" })
-        using (var f = new ExecutorFixture(Path.Combine(root, "p21-authority-" + change)))
+        using (var f = new ExecutorFixture(Path.Combine(root, "authority-authority-" + change)))
         {
-            var media = f.Add("authority", "overview", "p21-term");
+            var media = f.Add("authority", "overview", "authority-term");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "invalid_output")); };
             string parent; string? batch = null;
             if (change == "automatic") parent = f.Work.EnqueueAutomatic("nfo", f.Seed(media, "Genres"))!;
@@ -33,7 +33,7 @@ internal static class Private21Checks
             var denied = false; try { f.Work.Retry(child.Id); } catch (InvalidOperationException error) when (error.Message == "RetryIntentExpired") { denied = true; }
             check("obsolete inherited term cannot be retried after " + change, denied && f.Transport.Calls == 1 && f.Work.Find(child.Id)!.State == "failed" && f.Count("SELECT COUNT(*) FROM request_attempts") == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p21-shared-demand")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "authority-shared-demand")))
         {
             var a = f.Add("shared-a", "overview", "shared-term"); var b = f.Add("shared-b", "overview", "shared-term");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "invalid_output")); };
@@ -45,7 +45,7 @@ internal static class Private21Checks
             check("one valid parent can still retry and reuse a shared term", f.Work.Find(receipt.WorkIds[1])!.State == "completed" && f.Transport.Calls == 2);
             check("shared recovery preserves the other film's manual display", JsonSerializer.Deserialize<string[]>(f.Host.Get(f.Key(a), "Genres").Display)!.Single() == "人工分类");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p21-independent-demand")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "authority-independent-demand")))
         {
             const string term = "independent-term"; var media = f.Add("independent", "overview", term);
             var child = f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, [term]).WorkIds.Single();
@@ -58,7 +58,7 @@ internal static class Private21Checks
             f.Transport.Handler = null; f.Work.Retry(child); await f.Drain();
             check("independent dictionary retry needs no managed film or automatic mode", f.Work.Find(child)!.State == "completed" && f.Transport.Calls == 2);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p21-confirm-version")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "authority-confirm-version")))
         {
             var media = f.Add("unknown"); f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
             var id = f.Submit([media], ["Overview"]).WorkIds.Single(); await f.Drain();
@@ -68,7 +68,7 @@ internal static class Private21Checks
             f.Transport.Handler = null; f.Work.Retry(id, true, version); await f.Drain();
             check("current version confirmation retries exactly once and retains evidence", f.Transport.Calls == 2 && f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=1") == 1 && f.Work.Find(id)!.State == "completed");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p21-issue-index")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "authority-issue-index")))
         {
             var media = f.Add("index"); f.Submit([media], ["Overview"]); await f.Drain();
             var before = f.Text("SELECT group_concat(id||':'||state,',') FROM work_items"); var schema = f.Text("SELECT value FROM runtime_state WHERE key='schema_definition'");

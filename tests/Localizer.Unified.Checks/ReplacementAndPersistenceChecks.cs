@@ -3,12 +3,12 @@ using System.Text.Json;
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private20Checks
+internal static class ReplacementAndPersistenceChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
         foreach (var force in new[] { false, true })
-        using (var f = new ExecutorFixture(Path.Combine(root, "p20-replacement-" + force)))
+        using (var f = new ExecutorFixture(Path.Combine(root, "persistence-replacement-" + force)))
         {
             const string term = "replacement-term"; var media = f.Add("replacement", "overview", term);
             if (force) new Localizer.Unified.ConfigurationStore(f.Database).SaveTerm(term, "zh-Hans", "旧选用词", 0, Id());
@@ -27,7 +27,7 @@ internal static class Private20Checks
             check("old failure remains historical after replacement " + force, f.Work.Find(old.Id)!.State == "failed" && f.Work.Dependencies(parent).Length == 2);
             check("replacement value is displayed without another explicit retry " + force, JsonSerializer.Deserialize<string[]>(f.Host.Get(f.Key(media), "Genres").Display)!.Single() == "中文 " + term);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p20-unknown-replacement")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "persistence-unknown-replacement")))
         {
             const string term = "unknown-replacement"; var media = f.Add("unknown", "overview", term);
             new Localizer.Unified.ConfigurationStore(f.Database).SaveTerm(term, "zh-Hans", "旧选用词", 0, Id());
@@ -42,7 +42,7 @@ internal static class Private20Checks
             check("explicit consent retries only the current replacement", f.Work.Find(parent)!.State == "completed" && f.Transport.Calls == 3 && f.Work.Find(replacement)!.Attempts == 2);
             check("acknowledged unknown and obsolete failure evidence retained", f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=1") == 1 && f.Work.Dependencies(parent).Length == 2);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p20-missing-scope")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "persistence-missing-scope")))
         {
             var media = f.Add("scope"); var read = new ReadModel(f.Database); f.Submit([media], ["Name", "Genres"]); await f.Drain();
             check("enabled missing synopsis appears in scoped missing filter", read.Movies("", null, "missing", 0, 30).Total == 1);
@@ -58,7 +58,7 @@ internal static class Private20Checks
             settings = f.Settings.Read(); f.Settings.Save(settings.Revision, settings.Language, settings.Fields, [f.Library], true);
             check("restored managed scope reveals existing missing source", read.Movies("", f.Library, "missing", 0, 30).Total == 1 && f.Transport.Calls == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p20-history-index")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "persistence-history-index")))
         {
             var media = f.Add("history-index"); var batch = f.Submit([media], ["Name", "Overview"]); await f.Drain();
             var read = new ReadModel(f.Database); var before = JsonSerializer.Serialize(read.Work(null, 0, 100));

@@ -16,7 +16,7 @@ ASSEMBLIES = ('Localizer.Plugin.dll', 'Localizer.Core.dll', 'Localizer.Jellyfin.
 PAYLOAD = {f'Localizer/{name}': f'src/Localizer.Plugin/bin/Release/net10.0/{name}' for name in ASSEMBLIES}
 PAYLOAD.update({name: name for name in (
     'LICENSE', 'NOTICE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md',
-    'docs/INSTALL.md', 'docs/BACKUP.md', 'docs/PRIVACY.md', 'docs/VALIDATION.md', 'docs/DEVELOPMENT.md', 'docs/LOCAL-RULES.md')})
+    'docs/BACKUP.md', 'docs/DEVELOPMENT.md', 'docs/LOCAL-RULES.md')})
 PAYLOAD.update({'tools/Localizer-DataBackup.py': 'scripts/Localizer-DataBackup.py'})
 PAYLOAD.update({'tools/Localizer-AdoptData.py': 'scripts/Localizer-AdoptData.py', 'tools/local-rules.example.json': 'resources/local-rules.example.json'})
 

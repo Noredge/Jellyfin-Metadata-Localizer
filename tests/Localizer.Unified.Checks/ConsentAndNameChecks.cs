@@ -4,12 +4,12 @@ using Localizer.Core;
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Rc2Checks
+internal static class ConsentAndNameChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
         foreach (var field in new[] { "Name", "Overview" })
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-unknown-" + field)))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-unknown-" + field)))
         {
             var media = f.Add("Alice");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
@@ -32,7 +32,7 @@ internal static class Rc2Checks
                 f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=1") == 1
                 && f.Text("SELECT id||'|'||error_code||'|'||elapsed_ms FROM request_attempts WHERE state='unknown'") == oldEvidence);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-unknown-term")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-unknown-term")))
         {
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
             f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, ["共享词"], true); await f.Drain();
@@ -45,7 +45,7 @@ internal static class Rc2Checks
             f.Transport.Handler = null; f.Work.Retry(next, true); await f.Drain();
             check("shared dictionary consent resumes without discarding history", f.Transport.Calls == 2 && f.Work.Find(next)!.State == "completed" && f.Count("SELECT COUNT(*) FROM request_attempts") == 2);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-unknown-scope")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-unknown-scope")))
         {
             var media = f.Add("scope");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
@@ -58,7 +58,7 @@ internal static class Rc2Checks
             var back = f.Submit([media], ["Name"], true).WorkIds.Single(); await f.Drain();
             check("returning to original target language does not clear unknown consent", f.Transport.Calls == 3 && f.Work.Find(back)!.State == "paused");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-unknown-cache-display")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-unknown-cache-display")))
         {
             var media = f.Add("display");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
@@ -78,7 +78,7 @@ internal static class Rc2Checks
             check("retry can reuse a selected cache without acknowledging a prior unknown request", noSavedReference && f.Transport.Calls == 1 && f.Work.Find(reuse)!.State == "completed"
                 && f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=0") == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-person-validation")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-person-validation")))
         {
             var config = new ConfigurationStore(f.Database); var id = Id();
             var first = config.SavePerson(id, 0, "Alpha", "甲", "Alpha", ["Bob", "Alpha", "Bob"]);
@@ -97,7 +97,7 @@ internal static class Rc2Checks
             var reuse = config.SavePerson(other.Id, other.Revision, "Delta", "丁", null, ["Bob"]);
             check("explicitly released alias can be reassigned", fixedRule.Aliases.Length == 0 && reuse.Aliases.Single() == "Bob");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-legacy-person-conflict")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-legacy-person-conflict")))
         {
             var media = f.Add("Bob"); var config = new ConfigurationStore(f.Database); var alpha = Id();
             config.SavePerson(alpha, 0, "Alpha", "甲", null, ["Bob"]);
@@ -115,7 +115,7 @@ internal static class Rc2Checks
             var cached = f.Submit([media], ["Name"]).WorkIds.Single(); await f.Drain();
             check("ambiguous cached rendering cannot apply the wrong person or alter history", f.Transport.Calls == 1 && f.Work.Find(cached) is { State: "failed", Error: "person_alias_conflict" } && f.Host.Get(f.Key(media), "Name").Display.EndsWith("Bob", StringComparison.Ordinal) && f.Count("SELECT COUNT(*) FROM translation_versions") == history);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "rc2-frozen-name-collision")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "consent-frozen-name-collision")))
         {
             var media = f.Add("Alice Bob"); var config = new ConfigurationStore(f.Database); var alice = Id();
             config.SavePerson(alice, 0, "Alice", "同名", null, []); config.SavePerson(Id(), 0, "Bob", "同名", null, []);

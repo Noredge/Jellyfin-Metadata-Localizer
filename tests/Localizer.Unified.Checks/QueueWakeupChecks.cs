@@ -1,7 +1,7 @@
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private17Checks
+internal static class QueueWakeupChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
@@ -27,7 +27,7 @@ internal static class Private17Checks
         check("empty queue exponentially backs off from 250ms to an 8s ceiling", sequence.SequenceEqual(new double[] { 250, 500, 1000, 2000, 4000, 8000, 8000, 8000 }));
         backoff.Reset(); check("new work resets idle delay immediately", backoff.Delay == TimeSpan.FromMilliseconds(250));
 
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-commit-boundary")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-commit-boundary")))
         {
             signal = f.Database.WorkAvailable; version = signal.Version;
             f.Database.Write((db, tx) => Scalar<long>(db, tx, "SELECT 1"));
@@ -35,17 +35,17 @@ internal static class Private17Checks
             var pending = signal.WaitAsync(version, TimeSpan.FromSeconds(8));
             f.Database.Write((db, tx) =>
             {
-                Execute(db, tx, "INSERT INTO runtime_state VALUES('p17-commit','committed')");
+                Execute(db, tx, "INSERT INTO runtime_state VALUES('wakeup-commit','committed')");
                 check("notification is withheld while producer transaction is open", !pending.IsCompleted); return true;
             });
             var notified = await pending.WaitAsync(TimeSpan.FromSeconds(2));
-            check("notified reader observes durable committed state", notified && f.Text("SELECT value FROM runtime_state WHERE key='p17-commit'") == "committed");
+            check("notified reader observes durable committed state", notified && f.Text("SELECT value FROM runtime_state WHERE key='wakeup-commit'") == "committed");
             version = signal.Version;
-            try { f.Database.Write<bool>((db, tx) => { Execute(db, tx, "INSERT INTO runtime_state VALUES('p17-rollback','discard')"); throw new IOException("synthetic rollback"); }); }
+            try { f.Database.Write<bool>((db, tx) => { Execute(db, tx, "INSERT INTO runtime_state VALUES('wakeup-rollback','discard')"); throw new IOException("synthetic rollback"); }); }
             catch (IOException) { }
-            check("rolled-back producer changes neither queue signal nor durable rows", signal.Version == version && f.Count("SELECT COUNT(*) FROM runtime_state WHERE key='p17-rollback'") == 0);
+            check("rolled-back producer changes neither queue signal nor durable rows", signal.Version == version && f.Count("SELECT COUNT(*) FROM runtime_state WHERE key='wakeup-rollback'") == 0);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-producer-wake")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-producer-wake")))
         {
             var media = f.Add("producer", "山を歩く。"); signal = f.Database.WorkAvailable;
             async Task<bool> Wakes(Action write)
@@ -57,21 +57,21 @@ internal static class Private17Checks
             f.Work.Submit(command, "manual", revision, [f.Seed(media, "Name")]);
             check("idempotent submission replay does not create a wake event", signal.Version == replayVersion);
             check("automatic source admission uses the same commit wake", await Wakes(() => f.Work.EnqueueAutomatic("added", f.Seed(media, "Overview"))));
-            check("dictionary term generation uses the same commit wake", await Wakes(() => f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, ["p17-term"])));
+            check("dictionary term generation uses the same commit wake", await Wakes(() => f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, ["wakeup-term"])));
             var current = f.Content.ReadField(media, "Name")!;
-            check("saved display intent wakes worker even without direct queue submission", await Wakes(() => f.Content.SaveManual(current, "zh-Hans", "人工标题", true, f.Host.Get(f.Key(media), "Name").Display, "p17-intent")));
+            check("saved display intent wakes worker even without direct queue submission", await Wakes(() => f.Content.SaveManual(current, "zh-Hans", "人工标题", true, f.Host.Get(f.Key(media), "Name").Display, "wakeup-intent")));
             var settings = f.Settings.Read();
             check("global language change wakes the executor after settings commit", await Wakes(() => f.Settings.Save(settings.Revision, "en", settings.Fields, settings.ManagedLibraries, true)));
             check("cancelling a batch wakes worker to recheck remaining demand", await Wakes(() => f.Work.CancelBatch(receipt!.Id)));
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-retry-wake")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-retry-wake")))
         {
             var media = f.Add("retry"); var receipt = f.Submit([media], ["Overview"]);
             f.Transport.Handler = (_, _, _) => Task.FromResult(new GenerationReply(null, "configuration", NotSent: true)); await f.Drain();
             signal = f.Database.WorkAvailable; var pending = signal.WaitAsync(signal.Version, TimeSpan.FromSeconds(8)); f.Work.Retry(receipt.WorkIds.Single());
             check("explicit failed-work retry interrupts idle wait", await pending.WaitAsync(TimeSpan.FromSeconds(2)) && f.Work.Find(receipt.WorkIds.Single())!.State == "queued");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-deadlines")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-deadlines")))
         {
             var media = f.Add("due"); var receipt = f.Submit([media], ["Overview"]); var id = receipt.WorkIds.Single();
             void Schedule(string state, double seconds, double? leaseSeconds = null) => f.Database.Write((db, tx) => Execute(db, tx,
@@ -87,14 +87,14 @@ internal static class Private17Checks
             var stateBefore = f.Work.Find(id)!; f.Work.NextWakeDelay(TimeSpan.FromSeconds(8));
             check("wake deadline inspection never changes execution state", f.Work.Find(id) == stateBefore);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-dependency-deadline")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-dependency-deadline")))
         {
             var media = f.Add("dependency", "山を歩く。", "pending-term"); var receipt = f.Submit([media], ["Genres"]); await f.Executor.RunNextAsync();
             var child = f.Work.Dependencies(receipt.WorkIds.Single()).Single();
             f.Database.Write((db, tx) => Execute(db, tx, "UPDATE work_items SET state='waiting',next_run_utc=$n WHERE id=$id", ("$n", f.Clock.AddSeconds(3).ToString("O")), ("$id", child.Id)));
             check("blocked parent does not mask the shared child's next deadline", f.Work.NextWakeDelay(TimeSpan.FromSeconds(8)) == TimeSpan.FromSeconds(3));
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-fallback")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-fallback")))
         {
             var media = f.Add("fallback"); var receipt = f.Submit([media], ["Overview"]); var id = receipt.WorkIds.Single(); signal = f.Database.WorkAvailable;
             f.Database.Write((db, tx) => Execute(db, tx, "UPDATE work_items SET state='waiting',next_run_utc=$n WHERE id=$id", ("$n", f.Clock.AddHours(1).ToString("O")), ("$id", id)));
@@ -103,7 +103,7 @@ internal static class Private17Checks
             check("bounded fallback discovers a writer outside the in-process notifier", !await pending && f.Work.Claim("fallback")?.Id == id);
             check("queue hints preserve the unified schema and foreign keys", f.Text("PRAGMA integrity_check") == "ok" && f.Count("SELECT COUNT(*) FROM pragma_foreign_key_check") == 0);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p17-idle-to-task")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "wakeup-idle-to-task")))
         {
             var media = f.Add("idle-task"); signal = f.Database.WorkAvailable;
             for (var i = 0; i < 6; i++) { f.Work.Claim("empty"); }

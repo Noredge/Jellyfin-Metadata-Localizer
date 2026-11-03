@@ -2,48 +2,31 @@
 
 [简体中文](README.zh-CN.md) | English
 
-Translate and manage movie titles, NFO synopses, and genres in Jellyfin. Keep original sources and translation history, reuse saved translations, and follow one shared display language.
+Translate movie titles, synopses and genres in Jellyfin, with editable translations, reusable history and a shared display language.
 
-**1.0.0-rc.3 · Pre-release · Jellyfin 12.0.0 · Windows x64**
+**1.0.0 · Jellyfin 12.0.0 · Windows x64**
 
 ## Features
 
-- One plugin database and a durable background queue for generation, saving, and display updates.
-- Source-language-aware prompts, including mixed-language input; actual translation quality depends on the selected provider/model.
-- Simplified Chinese and English targets, bilingual administration, editable translations and history.
-- One public HTTPS OpenAI-compatible Chat Completions connection and model.
-- Missing-only batch fill, shared genre dictionary, optional person-name rules, and actionable issue links.
-- Idle polling backoff, paged lists, and protected reading/confirmation state during refresh.
-- Source, revision, external-edit and metadata-saver checks; NFO files are read, never rewritten.
+- Simplified Chinese and English targets with a bilingual management page.
+- One OpenAI-compatible HTTPS API connection and model.
+- Missing-only batch fill and automatic processing of new or changed movies.
+- Manual editing, translation history, shared genre dictionary and person-name rules.
+- Durable task recovery, request records and issue links to the affected movie.
+- Read-only NFO sources; saved translations are reused across language switches.
 
-## Requirements
+## Quick start
 
-Jellyfin Server **12.0.0**, Windows x64, administrator access, and a public HTTPS OpenAI-compatible API. Other hosts and platforms are unvalidated. Local/private endpoints, LM Studio native APIs, and multiple saved service profiles are not supported in this version.
+1. Download the ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases).
+2. Back up and stop Jellyfin. Replace the plugin's complete `Localizer` folder, then restart.
+3. Open **Metadata Localizer**. On first use, create its database and choose managed libraries and fields. Disable those libraries' metadata savers to enable display updates.
+4. Enter the API address and key → get models → choose a model → save. The connection translation test is optional.
+5. Preview and fill existing missing translations. Enable automatic processing when wanted.
 
-## Install and start
+Upgrades keep `data/metadata-localizer-v2`, including translations, settings and credentials. Displayed metadata is shared by all Jellyfin users. Generated text is sent to the configured provider; API keys are stored with Windows DPAPI.
 
-1. Download the ZIP and `SHA256SUMS.txt` from [Releases](https://github.com/Noredge/Jellyfin-Metadata-Localizer/releases). Verify the checksum.
-2. Back up and stop Jellyfin. Move the previous plugin folder outside the plugin directory; install the ZIP's `Localizer` folder and restart. Do not mix public and personal-fork DLLs.
-3. Open **Metadata Localizer**, create the new database, and select managed movie libraries and fields.
-4. Enter the API base and key → get models → select a model → save. Model lookup uses the draft without requiring a prior save or model. The translation test is optional and consumes one request if confirmed.
-5. Disable the managed library's metadata savers, review the sources, and start with a small library. Empty synopses are skipped normally.
+## More
 
-**Available results are automatically displayed for submitted work. Metadata is shared by all Jellyfin users.** Automatic processing starts disabled; enabling it watches new or changed movies. Adding an existing library first establishes a baseline; explicitly use missing-only fill for its backlog. See [Installation](docs/INSTALL.md).
+[Backup and recovery](docs/BACKUP.md) · [Local rules](docs/LOCAL-RULES.md) · [Development](docs/DEVELOPMENT.md) · [Changelog](CHANGELOG.md)
 
-## Earlier versions
-
-This is a new implementation based on the unified architecture. It uses `data/metadata-localizer-v2`; the old `data/metadata-localizer` directory stays untouched. Old settings, credentials, translations and jobs are not imported. The old release and Git history remain available. Keep a complete paired backup before switching; initialize and configure this version separately. See [Backup and recovery](docs/BACKUP.md).
-
-## Connection and privacy
-
-The server stores the key using Windows CurrentUser DPAPI, bound to the endpoint. A blank key keeps the saved key for the same address; a new address needs a key. The page never reads the key back. Provider/model capabilities vary; JSON mode and output budgets are configurable. Selected original text and protected-name context are sent to the configured service only when generation is requested. Unknown outcomes require explicit acknowledgement before retrying.
-
-## Documentation
-
-[Installation](docs/INSTALL.md) · [Backup](docs/BACKUP.md) · [Privacy](docs/PRIVACY.md) · [Development](docs/DEVELOPMENT.md) · [Validation](docs/VALIDATION.md) · [Changelog](CHANGELOG.md)
-
-## License
-
-[GPL-3.0-only](LICENSE); see [NOTICE](NOTICE). Unofficial Jellyfin plugin.
-
-The same package supports optional installation-local title and genre rules. Compatible unified stores can be explicitly adopted offline while retaining existing data and credentials; see [local rules and adoption](docs/LOCAL-RULES.md). Product versions are maintained in `Directory.Build.props`.
+GPL-3.0-only. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Unofficial Jellyfin plugin.

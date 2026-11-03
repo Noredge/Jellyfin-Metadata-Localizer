@@ -5,12 +5,12 @@ using Localizer.Unified;
 using Microsoft.Data.Sqlite;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private19Checks
+internal static class DependencyAndReadChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
         foreach (var manual in new[] { false, true })
-        using (var f = new ExecutorFixture(Path.Combine(root, manual ? "p19-manual-term" : "p19-completed-term")))
+        using (var f = new ExecutorFixture(Path.Combine(root, manual ? "dependencies-manual-term" : "dependencies-completed-term")))
         {
             const string term = "repaired-term"; var media = f.Add("repair", "overview", term);
             string SubmitTerm() => f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, [term]).WorkIds.Single();
@@ -25,7 +25,7 @@ internal static class Private19Checks
             var selected = new Localizer.Unified.ConfigurationStore(f.Database).Terms(term).Single().Chinese;
             check("display uses the current dictionary selection " + manual, JsonSerializer.Deserialize<string[]>(f.Host.Get(f.Key(media), "Genres").Display)!.Single() == selected);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p19-future-obsolete-child")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "dependencies-future-obsolete-child")))
         {
             var media = f.Add("future", "overview", "future-term"); var parent = f.Submit([media], ["Genres"]).WorkIds.Single(); await f.Executor.RunNextAsync();
             var child = f.Work.Dependencies(parent).Single();
@@ -35,7 +35,7 @@ internal static class Private19Checks
             await f.Drain();
             check("future obsolete dependency cannot delay cached parent display", f.Work.Find(parent)!.State == "completed" && f.Transport.Calls == 0 && f.Work.Dependencies(parent).Single().Id == child.Id);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p19-forced-unknown")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "dependencies-forced-unknown")))
         {
             const string term = "forced-term"; var media = f.Add("forced", "overview", term);
             var config = new Localizer.Unified.ConfigurationStore(f.Database); config.SaveTerm(term, "zh-Hans", "已有旧词", 0, Id());
@@ -48,7 +48,7 @@ internal static class Private19Checks
             check("new manual control resolves old forced failure without generation", f.Work.Find(parent)!.State == "completed" && f.Transport.Calls == 1 && JsonSerializer.Deserialize<string[]>(f.Host.Get(f.Key(media), "Genres").Display)!.Single() == "新人工词");
             check("manual recovery preserves unknown request evidence and consent", history == "unknown:0" && f.Text("SELECT state||':'||uncertainty_acknowledged FROM request_attempts") == history);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p19-forced-failed-cache")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "dependencies-forced-failed-cache")))
         {
             var media = f.Add("force-failure", "overview", "force-retry"); new Localizer.Unified.ConfigurationStore(f.Database).SaveTerm("force-retry", "zh-Hans", "旧选用", 0, Id());
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "invalid_output")); };
@@ -56,7 +56,7 @@ internal static class Private19Checks
             f.Transport.Handler = null; f.Work.Retry(parent); await f.Drain();
             check("explicit forced retry still requests a new result despite older cache", f.Work.Find(parent)!.State == "completed" && f.Transport.Calls == 2);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p19-issue-filter")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "dependencies-issue-filter")))
         {
             var media = f.Add("issues"); var read = new ReadModel(f.Database);
             f.Content.ProtectExternal(f.Content.ReadField(media, "Overview")!, "external display");
@@ -69,7 +69,7 @@ internal static class Private19Checks
             settings = f.Settings.Read(); f.Settings.Save(settings.Revision, settings.Language, settings.Fields, [], false);
             check("unmanaged source remains browseable without an actionable badge", read.Movies("", null, "all", 0, 30).Total == 1 && read.Movies("", null, "problem", 0, 30).Total == 0 && Convert.ToInt64(read.Movies("", null, "all", 0, 30).Items.Single()["source_problems"]) == 0);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p19-diagnostics")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "dependencies-diagnostics")))
         {
             var media = f.Add("diagnostic"); var id = f.Submit([media], ["Overview"]).WorkIds.Single(); ExecutionDiagnostic? invocation = null;
             f.Host.BeforeReadReturn = _ => Task.FromException(new SqliteException("secret request body", 5, 517));
@@ -88,7 +88,7 @@ internal static class Private19Checks
             check("later queue read reports its own error with no stale work", queueError is { Stage: "queue_deadline", WorkId: null, ErrorCode: 14 } && !JsonSerializer.Serialize(queueError).Contains("secret", StringComparison.Ordinal));
             check("queue diagnostic fault leaves durable state intact", f.Text("PRAGMA integrity_check") == "ok" && f.Count("SELECT COUNT(*) FROM pragma_foreign_key_check") == 0);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p19-work-reads")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "dependencies-work-reads")))
         {
             var original = string.Concat(Enumerable.Repeat("🧭漢", 120)); var result = new string('译', 700);
             var media = f.Add("long-work", original); f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(result, HttpStatus: 200)); };

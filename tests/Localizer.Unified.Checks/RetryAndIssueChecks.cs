@@ -4,11 +4,11 @@ using Localizer.Unified;
 using Microsoft.Data.Sqlite;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private18Checks
+internal static class RetryAndIssueChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-media-retry")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-media-retry")))
         {
             var media = f.Add("retry"); var old = f.Submit([media], ["Overview"]).WorkIds.Single();
             Fail(f, old); var replacement = f.Submit([media], ["Overview"]).WorkIds.Single();
@@ -28,14 +28,14 @@ internal static class Private18Checks
             bool expired = false; try { f.Work.Retry(old); } catch (InvalidOperationException e) when (e.Message == "RetryIntentExpired") { expired = true; }
             check("obsolete history retry remains explicitly expired", expired);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-term-retry")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-term-retry")))
         {
             string Submit() => f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, ["isolated-term"]).WorkIds.Single();
             var old = Submit(); Fail(f, old); var replacement = Submit();
             check("old term retry also reuses the existing active target", f.Work.Retry(old) == replacement && f.Work.Find(old)!.State == "failed");
             await f.Drain(); check("shared term replacement sends once", f.Transport.Calls == 1 && f.Work.Find(replacement)!.State == "completed");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-parent-retry")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-parent-retry")))
         {
             var media = f.Add("parent", "overview", "retry-shared");
             string SubmitTerm() => f.Work.SubmitTerms(Id(), "dictionary", f.Settings.Read().Revision, ["retry-shared"]).WorkIds.Single();
@@ -45,7 +45,7 @@ internal static class Private18Checks
             check("parent retry reconnects a reused active child without a stale failed dependency", f.Work.Dependencies(parent).Single().Id == newChild && f.Work.Find(oldChild)!.State == "failed");
             await f.Drain(); check("reconnected parent completes with one shared request", f.Work.Find(parent)!.State == "completed" && f.Transport.Calls == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-execution-diagnostic")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-execution-diagnostic")))
         {
             var media = f.Add("diagnostic"); var id = f.Submit([media], ["Overview"]).WorkIds.Single();
             f.Host.BeforeReadReturn = _ => throw new SqliteException("secret-Key request contents", 5, 517);
@@ -55,7 +55,7 @@ internal static class Private18Checks
             f.Host.BeforeReadReturn = null; f.Clock = f.Clock.AddSeconds(2); await f.Drain();
             check("diagnosed interruption recovers without an extra generation", f.Work.Find(id)!.State == "completed" && f.Transport.Calls == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-independent-issues")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-independent-issues")))
         {
             var receipt = f.Work.SubmitTerms(Id(), "connection_test", f.Settings.Read().Revision, ["接続確認"]); Fail(f, receipt.WorkIds.Single());
             var read = new ReadModel(f.Database); var page = read.Issues("translation", "synthetic_failure", 0, 30);
@@ -65,7 +65,7 @@ internal static class Private18Checks
             f.Work.Retry(receipt.WorkIds.Single()); await f.Drain();
             check("successful term retry clears the current issue without deleting history", read.Issues("translation", "synthetic_failure", 0, 30).Total == 0 && f.Count("SELECT COUNT(*) FROM work_items") == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-linked-issues")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-linked-issues")))
         {
             var a = f.Add("a", "overview", "shared-failed"); var b = f.Add("b", "overview", "shared-failed");
             var batch = f.Submit([a, b], ["Genres"]); await f.Executor.RunNextAsync(); await f.Executor.RunNextAsync();
@@ -76,7 +76,7 @@ internal static class Private18Checks
             f.Content.MarkRemoved(a); f.Content.MarkRemoved(b);
             check("term with no remaining movie relation falls back to its task", read.Issues("translation", "synthetic_failure", 0, 30).Items.All(x => (string)x["target_kind"]! == "term"));
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p18-query-and-wake")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "issues-query-and-wake")))
         {
             var version = f.Database.WorkAvailable.Version;
             var media = f.Add("registration"); // Source observations retain readiness notifications.
@@ -105,7 +105,7 @@ internal static class Private18Checks
             check("recent query limits before aggregation while retaining old batches", latest.RootElement.GetProperty("Batches").EnumerateArray().Select(x => x.GetProperty("id").GetString()).SequenceEqual(new[] { "recent-39", "recent-38", "recent-37" }) && f.Count("SELECT COUNT(*) FROM batches") >= 41);
             check("new diagnostics do not change schema or data integrity", f.Text("PRAGMA integrity_check") == "ok" && f.Count("SELECT COUNT(*) FROM pragma_foreign_key_check") == 0);
         }
-        var directory = Path.Combine(root, "p18-nfo"); Directory.CreateDirectory(directory);
+        var directory = Path.Combine(root, "issues-nfo"); Directory.CreateDirectory(directory);
         var primary = Path.Combine(directory, "primary.mp4"); File.WriteAllBytes(primary, []);
         File.WriteAllText(Path.Combine(directory, "movie.nfo"), "<movie><plot>隔离简介</plot><genre>Drama</genre></movie>");
         foreach (var extension in new[] { ".3gp", ".ASF", ".mxf", ".ogv", ".divx", ".mkv" })

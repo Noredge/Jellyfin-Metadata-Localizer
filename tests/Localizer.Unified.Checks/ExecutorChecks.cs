@@ -52,19 +52,19 @@ internal static class ExecutorChecks
             await ExecutorFailureChecks.Run(root, Check);
             await ExecutorConfigurationChecks.Run(root, Check);
             await ExecutorProcessChecks.Run(root, Check);
-            await Private14Checks.Run(root, Check);
-            await Private16Checks.Run(root, Check);
-            await Private17Checks.Run(root, Check);
-            await Private18Checks.Run(root, Check);
-            await Private19Checks.Run(root, Check);
-            await Private20Checks.Run(root, Check);
-            await Private21Checks.Run(root, Check);
-            await Private22Checks.Run(root, Check);
-            PublicReleaseChecks.Run(root, Check);
+            await FillAndValidationChecks.Run(root, Check);
+            await RecoveryAndObservationChecks.Run(root, Check);
+            await QueueWakeupChecks.Run(root, Check);
+            await RetryAndIssueChecks.Run(root, Check);
+            await DependencyAndReadChecks.Run(root, Check);
+            await ReplacementAndPersistenceChecks.Run(root, Check);
+            await AuthorityAndSchedulingChecks.Run(root, Check);
+            await ReadAndCacheChecks.Run(root, Check);
+            InstallationChecks.Run(root, Check);
             LocalRuleChecks.Run(root, Check);
-            await Rc2Checks.Run(root, Check);
-            await Rc3Checks.Run(root, Check);
-            await PerformanceCleanupChecks.Run(root, Check);
+            await ConsentAndNameChecks.Run(root, Check);
+            await ResponseAndReceiptChecks.Run(root, Check);
+            await ReadScopeAndRenderingChecks.Run(root, Check);
             File.WriteAllText(Path.Combine(root, "executor-checks.json"), JsonSerializer.Serialize(new { status = "passed", checks, realModelRequests = 0, productionHostWrites = 0 }, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception error)

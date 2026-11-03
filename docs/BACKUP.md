@@ -1,34 +1,20 @@
 # Backup and recovery / 备份与恢复
 
-Stop Jellyfin before filesystem backup or restore. Preserve the plugin version together with compatible data, configuration and the Jellyfin host database. A plugin-only backup does not capture Jellyfin's displayed metadata or undo host changes.
+Stop Jellyfin and retain the complete plugin folder, `data/metadata-localizer-v2`, Jellyfin's host database and configuration as one backup. Keep SQLite sidecar files, encrypted credentials, local rules and `late-responses` with the data directory.
 
-## Unified plugin data
-
-Back up the entire `data/metadata-localizer-v2` directory, including `metadata-localizer.db`, any `-wal`, `-shm` or `-journal` files, encrypted credentials, worker-lock file and any `late-responses` directory. The latter holds validated late responses awaiting database persistence; retain it with the paired data so recovery needs no provider resend. Do not select only the main DB while a WAL exists. Keys remain bound to the Windows account and endpoint.
-
-The ZIP includes `tools/Localizer-DataBackup.py` (Python 3.12+, standard library). Supply absolute paths, using the actual server data location:
+The package includes a Python 3.12+ backup tool. Use absolute paths matching your installation:
 
 ```powershell
 python tools/Localizer-DataBackup.py backup --source C:\JellyfinData\data\metadata-localizer-v2 --archive C:\Backups\localizer.zip --server-stopped
 python tools/Localizer-DataBackup.py restore --archive C:\Backups\localizer.zip --destination C:\RestoreCheck\metadata-localizer-v2 --server-stopped
 ```
 
-The tool requires stopped-server acknowledgement, rejects an active worker lock, preserves all files, checks SQLite integrity and foreign keys on an independent copy, requires the exact supported schema definition, and verifies SHA-256. Restore creates a new directory, never overwrites an installation, and rejects unsafe archive paths. Limits: 10,000 files and 1 GiB of plugin data. Test a restore before relying on a backup. Treat archives as private even though keys are encrypted.
+The tool verifies file digests, SQLite integrity, foreign keys and schema compatibility. Restore to a new directory and check it before replacing installed data. Keep the current installation separately so changes after the backup remain recoverable. Encrypted keys require the same Windows account and endpoint.
 
-To replace an installed directory, keep Jellyfin stopped, retain the current directory separately, and move the independently verified restored directory into place. Do not discard data created after the backup. Start and inspect logs, library display and request state. Never edit request evidence to bypass unknown-outcome confirmation.
+## Upgrading to 1.0
 
-## Returning to 0.11
+Compatible unified versions keep the same plugin identity, schema 1 and `metadata-localizer-v2` directory. Replace all five plugin DLLs together and retain existing data; translations and credentials continue to be used.
 
-Keep old `data/metadata-localizer` and the old plugin separately. Version 0.12 neither migrates nor rewrites them. Switching DLLs does not undo metadata displayed by 0.12: use guarded restore actions or restore the complete paired Jellyfin backup from before the switch. Do not mix versions' DLLs or point an old version at the new DB. Old Release and Git history remain available.
+Older layouts in `data/metadata-localizer` remain separate. Optional offline adoption of a compatible unified store is described in [local rules](LOCAL-RULES.md).
 
-中文提示：停服后整目录备份并保全SQLite旁文件和加密密钥。工具只备份插件数据，完整回退还需要配套的Jellyfin主库及配置。恢复到全新目录校验；覆盖安装前另存当前数据。
-
-## Compatible unified stores
-
-For optional personal rules and explicit offline adoption of a compatible unified schema-1 store, see [local rules and adoption](LOCAL-RULES.md). No store is selected or merged automatically. Keep the source, complete backup and old plugin for rollback.
-
-## Upgrading a unified preview to 1.0
-
-Version 1.0 retains the public plugin identity, schema 1 and `data/metadata-localizer-v2`. After a complete paired backup and verified restore, stop Jellyfin and replace the complete five-DLL plugin together. Keep the existing data directory, encrypted credentials and optional local rules. Existing saved translations are reused; the upgrade does not regenerate them. A backup with an unsupported definition is rejected even when its integrity and digests pass.
-
-The backup helper supports Python 3.12 or later and rejects Windows reserved names on every platform, including console aliases and superscript COM/LPT devices.
+中文：停服后备份插件、完整数据目录及 Jellyfin 主库和配置；先恢复到新目录验证。升级保留现有 `metadata-localizer-v2`，回退前另存后来产生的数据。

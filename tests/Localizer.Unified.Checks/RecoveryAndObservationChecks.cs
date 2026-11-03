@@ -3,11 +3,11 @@ using Localizer.Unified;
 using Microsoft.Data.Sqlite;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private16Checks
+internal static class RecoveryAndObservationChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-readmission")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-readmission")))
         {
             var media = f.Add("returning", "山を歩く。"); var key = f.Key(media);
             var title = f.Content.ReadField(media, "Name")!;
@@ -27,7 +27,7 @@ internal static class Private16Checks
             await f.Observer.ObserveAllAsync();
             check("different path cannot reactivate an old identity", f.Count("SELECT present FROM media_items") == 0 && f.Content.ReadField(media, "Name")!.Availability == "unreadable");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-local-recovery")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-local-recovery")))
         {
             var media = f.Add("local-recovery"); var batch = f.Submit([media], ["Overview"]);
             f.Host.BeforeReadReturn = _ => throw new SqliteException("Synthetic SQLITE_BUSY", 5);
@@ -38,7 +38,7 @@ internal static class Private16Checks
         }
         foreach (var stage in new[] { "request.prepared", "request.received", "request.committed" })
         {
-            using var f = new ExecutorFixture(Path.Combine(root, "p16-recovery-" + stage));
+            using var f = new ExecutorFixture(Path.Combine(root, "recovery-recovery-" + stage));
             var media = f.Add(stage); var batch = f.Submit([media], ["Overview"]); f.Executor.Dispose(); var fail = true;
             using var executor = new UnifiedExecutor(f.Work, f.Host, f.Transport, (point, _) => { if (fail && point == stage) { fail = false; throw new IOException("Synthetic local persistence interruption"); } });
             try { await executor.RunNextAsync(); } catch (IOException) { }
@@ -51,7 +51,7 @@ internal static class Private16Checks
             }
             else check("local recovery at " + stage + " uses persisted send boundary", f.Work.Find(batch.WorkIds.Single())!.State == "completed" && f.Transport.Calls == 1 && (stage != "request.prepared" || f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='not_sent' AND error_code='interrupted_before_send'") == 1));
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-fill-retry")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-fill-retry")))
         {
             var media = f.Add("retry-terms", "山を歩く。", "good-term", "bad-term");
             f.Transport.Handler = (input, send, _) => { send(); return Task.FromResult(input.Text == "bad-term" ? new GenerationReply(null, "invalid_output", HttpStatus: 200) : FakeUnifiedTransport.Reply(input)); };
@@ -61,7 +61,7 @@ internal static class Private16Checks
             check("confirmed fill retries the failed dependency exactly once", f.Transport.Calls == before + 1 && f.Work.Find(retry.WorkIds.Single())!.State == "completed");
             check("refill retains failed attempt and reuses every successful term", f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='failed' AND error_code='invalid_output'") == 1 && f.Transport.Inputs.Count(x => x.Text == "good-term") == 1 && f.Transport.Inputs.Count(x => x.Text == "bad-term") == 2);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-fill-unknown")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-fill-unknown")))
         {
             var media = f.Add("unknown-term", "山を歩く。", "uncertain");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "network_uncertain", OutcomeUnknown: true)); };
@@ -69,7 +69,7 @@ internal static class Private16Checks
             var next = f.Work.Submit(Id(), "fill", f.Settings.Read().Revision, [f.Seed(media, "Genres")]); await f.Drain();
             check("fill never bypasses unknown dependency consent", f.Transport.Calls == 1 && next.WorkIds.All(id => f.Work.Find(id)!.State is "failed" or "paused") && f.Count("SELECT COUNT(*) FROM request_attempts WHERE state='unknown' AND uncertainty_acknowledged=0") == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-fill-bounded")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-fill-bounded")))
         {
             var media = f.Add("bounded", "山を歩く。", "always-fails");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "invalid_output")); };
@@ -77,7 +77,7 @@ internal static class Private16Checks
             var retry = f.Work.Submit(Id(), "fill", f.Settings.Read().Revision, [f.Seed(media, "Genres")]); await f.Drain();
             check("one explicit fill retries a failed word only once even if it fails again", f.Transport.Calls == 2 && f.Work.Find(retry.WorkIds.Single())!.State == "failed");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-shared-fill-bounded")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-shared-fill-bounded")))
         {
             var first = f.Add("shared-first", "山を歩く。", "always-fails"); var second = f.Add("shared-second", "海を歩く。", "always-fails");
             f.Transport.Handler = (_, send, _) => { send(); return Task.FromResult(new GenerationReply(null, "invalid_output")); };
@@ -86,7 +86,7 @@ internal static class Private16Checks
             f.Work.Submit(Id(), "fill", f.Settings.Read().Revision, [f.Seed(first, "Genres"), f.Seed(second, "Genres")]); await f.Drain();
             check("one new fill retries a shared failed word once across all films", f.Transport.Calls == 2);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-incremental")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-incremental")))
         {
             f.Host.HintsEnabled = true; var media = f.Add("incremental", "山を歩く。", "common");
             await f.Observer.ObserveAllAsync(); var reads = f.Host.FieldReads;
@@ -103,7 +103,7 @@ internal static class Private16Checks
             reads = f.Host.FieldReads; await f.Observer.ObserveAllAsync();
             check("settings changes invalidate cached observation context", f.Host.FieldReads == reads + 3);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-legacy-json")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-legacy-json")))
         {
             var item = f.AddHostOnly("legacy-json", "山を歩く。", "共通");
             var media = f.Content.RegisterMedia(item.Key, item.MediaPath, "{}");
@@ -115,7 +115,7 @@ internal static class Private16Checks
             f.Observe(media, "Genres");
             check("equivalent legacy Unicode JSON does not rewrite observations or source bytes", f.Text("SELECT observed_utc FROM media_fields") == "2000-01-01T00:00:00Z" && f.Content.ReadField(media, "Genres")!.Content == "[\"共通\"]");
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-auto-batches")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-auto-batches")))
         {
             f.AddHostOnly("first", "山を歩く。", "shared"); f.AddHostOnly("second", "海を歩く。", "shared");
             await f.Observer.ObserveAllAsync(); await f.Drain();
@@ -125,13 +125,13 @@ internal static class Private16Checks
             check("automatic batch work uses the same executor and shared terms", f.Transport.Calls == 5 && f.Count("SELECT COUNT(*) FROM batch_items") == 6 && f.Count("SELECT COUNT(*) FROM work_items WHERE state='completed'") == 7);
             await f.Observer.ObserveAllAsync(); check("unchanged automatic observation creates no duplicate batch", f.Count("SELECT COUNT(*) FROM batches") == 1);
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-auto-off")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-auto-off")))
         {
             f.AddHostOnly("auto-off"); await f.Observer.ObserveAllAsync(); var settings = f.Settings.Read();
             f.Settings.Save(settings.Revision, settings.Language, settings.Fields, settings.ManagedLibraries, false); await f.Drain();
             check("automatic summary batches do not become manual execution demand", f.Transport.Calls == 0 && f.Work.List().All(x => x.State == "expired"));
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-auto-cancel")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-auto-cancel")))
         {
             var item = f.AddHostOnly("auto-cancel"); await f.Observer.ObserveAllAsync();
             var media = Hash(JsonSerializer.Serialize(new[] { item.Key.ServerId, item.Key.LibraryId, item.Key.ItemId }));
@@ -139,7 +139,7 @@ internal static class Private16Checks
             f.Work.CancelBatch(automatic); await f.Drain();
             check("cancelling automatic batch preserves shared manual demand", f.Transport.Calls == 1 && f.Work.Find(manual.WorkIds.Single())!.State == "completed" && f.Work.List().Where(x => x.Field != "Name").All(x => x.State == "cancelled"));
         }
-        using (var f = new ExecutorFixture(Path.Combine(root, "p16-parameters")))
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-parameters")))
         {
             var original = f.Settings.Connection()!; var count = f.Count("SELECT COUNT(*) FROM connection_versions");
             foreach (var invalid in new[] { "{\"MaxOutputTokens\":0}", "{\"MaxOutputTokens\":32769}", "{\"MaxOutputTokens\":64.5}", "{\"MaxOutputTokens\":\"512\"}", "{\"MaxOutputTokens\":null}", "{\"OverviewMaxOutputTokens\":63}", "{\"UseJsonResponseFormat\":\"true\"}", "{\"UseJsonResponseFormat\":null}", "{\"TokenParameter\":\"other\"}", "{\"ReasoningEffort\":\"unsupported\"}", "{\"Store\":1}", "{\"MaxOutputTokens\":64,\"MaxOutputTokens\":512}", "[]" })

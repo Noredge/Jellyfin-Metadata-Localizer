@@ -11,11 +11,11 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Backup checks failed'}
     & $Python scripts/Test-LocalizerAdoption.py (Join-Path $evidence 'adoption') (Join-Path $evidence 'adoption-checks.json')
     if($LASTEXITCODE -ne 0){throw 'Adoption checks failed'}
-    & $Node tests/check_public_release.mjs (Join-Path $evidence 'public-ui-checks.json')
+    & $Node tests/check_installation.mjs (Join-Path $evidence 'public-ui-checks.json')
     if($LASTEXITCODE -ne 0){throw 'Public setup checks failed'}
     & $Node tests/check_web_sources.mjs (Join-Path $evidence 'web-sources-checks.json')
     if($LASTEXITCODE -ne 0){throw 'Web source and embedded page checks failed'}
-    & $Node tests/check_ui_performance.mjs (Join-Path $evidence 'ui-performance-checks.json')
+    & $Node tests/check_rendering.mjs (Join-Path $evidence 'ui-performance-checks.json')
     if($LASTEXITCODE -ne 0){throw 'UI rendering and translation checks failed'}
     & $Python scripts/Privacy-Check.py
     if($LASTEXITCODE -ne 0){throw 'Privacy checks failed'}

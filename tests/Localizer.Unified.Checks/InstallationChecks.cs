@@ -1,7 +1,7 @@
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class PublicReleaseChecks
+internal static class InstallationChecks
 {
     internal static void Run(string root, Action<string, bool> check)
     {

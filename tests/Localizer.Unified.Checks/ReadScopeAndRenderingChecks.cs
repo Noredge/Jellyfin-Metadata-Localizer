@@ -2,7 +2,7 @@ using Localizer.Core;
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class PerformanceCleanupChecks
+internal static class ReadScopeAndRenderingChecks
 {
     internal static async Task Run(string root, Action<string, bool> check)
     {

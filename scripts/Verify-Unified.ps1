@@ -34,25 +34,15 @@ if($LASTEXITCODE -ne 0){throw 'Executor checks failed'}
 if($LASTEXITCODE -ne 0){throw 'Read checks failed'}
 & $Dotnet $transport (Join-Path $target 'transport') *> (Join-Path $target 'transport.log')
 if($LASTEXITCODE -ne 0){throw 'Transport checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_work_poll.mjs') (Join-Path $target 'work-poll-checks.json') *> (Join-Path $target 'work-poll.log')
-if($LASTEXITCODE -ne 0){throw 'Work polling checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_onboarding.mjs') (Join-Path $target 'onboarding-checks.json') *> (Join-Path $target 'onboarding.log')
-if($LASTEXITCODE -ne 0){throw 'Connection onboarding checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private14.mjs') (Join-Path $target 'private14-ui-checks.json') *> (Join-Path $target 'private14-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private14 UI checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private16.mjs') (Join-Path $target 'private16-ui-checks.json') *> (Join-Path $target 'private16-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private16 UI checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private18.mjs') (Join-Path $target 'private18-ui-checks.json') *> (Join-Path $target 'private18-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private18 UI checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private19.mjs') (Join-Path $target 'private19-ui-checks.json') *> (Join-Path $target 'private19-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private19 UI checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private20.mjs') (Join-Path $target 'private20-ui-checks.json') *> (Join-Path $target 'private20-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private20 UI checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private21.mjs') (Join-Path $target 'private21-ui-checks.json') *> (Join-Path $target 'private21-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private21 UI checks failed'}
-& $Node (Join-Path $repo 'tests/check_unified_private22.mjs') (Join-Path $target 'private22-ui-checks.json') *> (Join-Path $target 'private22-ui.log')
-if($LASTEXITCODE -ne 0){throw 'Private22 UI checks failed'}
-$reports=@('storage/checks.json','storage/settings/settings-checks.json','executor/executor-checks.json','read/read-checks.json','transport/transport-checks.json','work-poll-checks.json','onboarding-checks.json','private14-ui-checks.json','private16-ui-checks.json','private18-ui-checks.json','private19-ui-checks.json','private20-ui-checks.json','private21-ui-checks.json','private22-ui-checks.json')
+& $Node (Join-Path $repo 'tests/check_connection.mjs') (Join-Path $target 'connection-checks.json') *> (Join-Path $target 'connection.log')
+if($LASTEXITCODE -ne 0){throw 'connection checks failed'}
+& $Node (Join-Path $repo 'tests/check_management_ui.mjs') (Join-Path $target 'management-ui-checks.json') *> (Join-Path $target 'management-ui.log')
+if($LASTEXITCODE -ne 0){throw 'management-ui checks failed'}
+& $Node (Join-Path $repo 'tests/check_page_lifecycle.mjs') (Join-Path $target 'page-lifecycle-checks.json') *> (Join-Path $target 'page-lifecycle.log')
+if($LASTEXITCODE -ne 0){throw 'page-lifecycle checks failed'}
+& $Node (Join-Path $repo 'tests/check_work_views.mjs') (Join-Path $target 'work-views-checks.json') *> (Join-Path $target 'work-views.log')
+if($LASTEXITCODE -ne 0){throw 'work-views checks failed'}
+$reports=@('storage/checks.json','storage/settings/settings-checks.json','executor/executor-checks.json','read/read-checks.json','transport/transport-checks.json','connection-checks.json','management-ui-checks.json','page-lifecycle-checks.json','work-views-checks.json')
 $evidence=@(foreach($relative in $reports){
     $path=Join-Path $target $relative
     $report=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json

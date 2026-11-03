@@ -2,11 +2,11 @@ using System.Text.Json;
 using Localizer.Unified;
 using static Localizer.Unified.UnifiedDatabase;
 
-internal static class Private14Checks
+internal static class FillAndValidationChecks
 {
     internal static async Task Run(string root, Action<string,bool> check)
     {
-        using var f = new ExecutorFixture(Path.Combine(root,"private14"));
+        using var f = new ExecutorFixture(Path.Combine(root,"fill"));
         void Fail(string id,string code){using var db=f.Database.Open();Execute(db,null,"UPDATE work_items SET state='failed',step='request',issue_kind='translation',error_code=$e WHERE id=$id",("$e",code),("$id",id));}
         var a=f.Add("filled","", "山"); var b=f.Add("missing","海を歩く。");
         f.Submit([a], ["Name","Genres"]); await f.Drain();
