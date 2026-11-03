@@ -1,0 +1,51 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {functionSource,bindingSource} from './web_sources.mjs';
+import {workFixture} from './work_dom_fixture.mjs';
+import {uiPattern,uiWords} from '../src/Localizer.Plugin/Web/scripts/i18n.mjs';
+const checks=[],check=(name,fn)=>{fn();checks.push({name,passed:true});};
+const nodes=new Map();
+const $=id=>{
+ if(!nodes.has(id)){let html='';nodes.set(id,{writes:0,get innerHTML(){return html;},set innerHTML(value){html=value;this.writes++;}});}
+ return nodes.get(id);
+};
+let data={fields:[{field:'Overview',translated:214,denominator:214,empty:53}],batches:[{id:'history',kind:'added',language:'zh-Hans',completed:126,total:127,problem:1}],issues:[]};
+const c=vm.createContext({$,api:async()=>data});
+vm.runInContext(bindingSource('labels')+'\nconst errors={};\n'+['setUiText','setUiHtml','languageName','name','escape','batchTime','recentBatches','loadOverview'].map(functionSource).join('\n'),c);
+await c.loadOverview();
+check('overview exposes empty originals and clearly historical batch failures',()=>{
+ assert($('#luCoverage').innerHTML.includes('空原文 53'));assert($('#luBatches').innerHTML.includes('历史失败/暂停 1'));
+ assert($('#luBatches').innerHTML.includes('简体中文'));assert(!$('#luBatches').innerHTML.includes('zh-Hans'));
+});
+for(const node of nodes.values()){node.innerHTML=node.innerHTML.replace(uiPattern,x=>uiWords[x]);node.writes=0;}
+await c.loadOverview();
+check('identical English overview never replaces translated regions',()=>assert([...nodes.values()].every(node=>node.writes===0)));
+data={...data,fields:[{...data.fields[0],translated:213}]};await c.loadOverview();
+check('one coverage change leaves history and issue regions intact',()=>{assert.equal($('#luCoverage').writes,1);assert.equal($('#luBatches').writes,0);assert.equal($('#luIssues').writes,0);});
+const rows=Array.from({length:30},(_,i)=>({id:'row-'+i,state:'completed',field:'Overview',original:'source',result_text:'saved',attempt_count:1,updated_utc:'one'}));
+const f=workFixture();let current=rows;f.setHandler(async()=>current);await f.c.loadWork();
+const original=[...f.list.children],created=f.list.creates;await f.c.loadWork(true);
+check('unchanged thirty-row work response retains every node and control',()=>{assert.equal(f.list.creates,created);assert(f.list.children.every((node,i)=>node===original[i]));});
+current=rows.map((row,i)=>i===4?{...row,result_text:'changed',updated_utc:'two'}:row);await f.c.loadWork(true);
+check('one changed work item replaces only its own row',()=>{assert.equal(f.list.creates,created+1);assert(f.list.children.every((node,i)=>i===4?node!==original[i]:node===original[i]));});
+current=[...current].reverse();const reordered=[...f.list.children].reverse();await f.c.loadWork(true);
+check('work reordering moves existing nodes without recreating their content',()=>assert(f.list.children.every((node,i)=>node===reordered[i])));
+const clock=workFixture();let now=1000;clock.c.Date=class extends Date {static now(){return now;}};
+clock.setHandler(async()=>[{...rows[0],state:'running',current_stage_started_utc:'1970-01-01T00:00:00Z'}]);
+await clock.c.loadWork();const running=clock.list.children[0];now=2000;await clock.c.loadWork(true);
+check('running clock advances in place without replacing its task row',()=>{assert.equal(clock.list.children[0],running);assert.equal(running.clock.querySelector().textContent,'2000');});
+const scheduled=[],painted=[];const page={contains:node=>node.connected!==false};
+const t=vm.createContext({page,queueMicrotask:fn=>scheduled.push(fn),paintUi:root=>painted.push(root)});
+vm.runInContext(functionSource('queueUiPaint'),t);
+const child={contains:()=>false},root={contains:node=>node===child},other={contains:()=>false},removed={connected:false,contains:()=>false};
+t.queueUiPaint([{type:'childList',addedNodes:[root,child]}]);t.queueUiPaint([{type:'characterData',target:other},{type:'childList',addedNodes:[removed]}]);
+check('translation mutations coalesce and discard redundant or detached roots',()=>{assert.equal(scheduled.length,1);scheduled.shift()();assert.deepEqual(painted,[root,other]);});
+const text={nodeType:3,nodeValue:'标题',parentElement:{closest:()=>false}};
+const titleRoot={nodeType:1,matches:()=>false,querySelectorAll:()=>[],texts:[text]};
+const p=vm.createContext({page:titleRoot,uiLanguage:'en',NodeFilter:{SHOW_TEXT:4},document:{createTreeWalker:root=>{let i=0;return {nextNode:()=>root.texts[i++]||null};}}});
+vm.runInContext(bindingSource('uiWords')+'\nconst uiPattern=new RegExp('+JSON.stringify(uiPattern.source)+',"g");const uiOriginals=new WeakMap(),uiAttributes=new WeakMap();\n'+functionSource('paintUi'),p);
+p.paintUi();check('subtree translation preserves its original for language switching',()=>assert.equal(text.nodeValue,'Title'));
+p.uiLanguage='zh-Hans';p.paintUi();check('switching back restores original interface text',()=>assert.equal(text.nodeValue,'标题'));
+text.parentElement.closest=()=>true;p.uiLanguage='en';p.paintUi();check('media data remains excluded from automatic translation',()=>assert.equal(text.nodeValue,'标题'));
+const result={status:'passed',checks,realModelRequests:0};if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

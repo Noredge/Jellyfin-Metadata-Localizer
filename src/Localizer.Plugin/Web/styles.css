@@ -57,13 +57,7 @@
 .lu-nav {
   border-bottom: 1px solid var(--lu-line);
   margin: 24px 0;
-}
-.lu-nav button {
-  border: 0;
-  border-radius: 0;
-  background: none;
-  padding: 12px 18px;
-  border-bottom: 2px solid transparent;
+  padding-bottom: 12px;
 }
 .lu-nav button[aria-selected='true'] {
   border-color: var(--lu-accent);
@@ -83,6 +77,9 @@
   min-height: 38px;
   cursor: pointer;
   background: var(--lu-panel);
+}
+.lu-app .lu-nav button {
+  padding: 8px 14px;
 }
 .lu-app button:disabled {
   opacity: 0.45;
@@ -306,7 +303,7 @@
   .lu-app dialog {
     padding: 16px;
   }
-  .lu-nav button {
+  .lu-app .lu-nav button {
     padding: 12px;
   }
   .lu-actions > button {

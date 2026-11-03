@@ -16,14 +16,17 @@ export async function loadState(signal, accept = () => true) {
   const data = await api('state', undefined, signal);
   if (!accept()) return;
   state = data;
-  $('#luTarget').textContent = state.settings
-    ? state.settings.language === 'en'
-      ? '全局目标 · English'
-      : '全局目标 · 简体中文'
-    : state.health?.state || '未就绪';
+  setUiText(
+    $('#luTarget'),
+    state.settings
+      ? state.settings.language === 'en'
+        ? '全局目标 · English'
+        : '全局目标 · 简体中文'
+      : state.health?.state || '未就绪',
+  );
   $('#luMissing').hidden = state.ready;
   const local = $('#luLocalRules');
-  if (local) local.textContent = state.localRules?.loaded ? '本机规则已加载' : '使用内置通用规则';
+  if (local) setUiText(local, state.localRules?.loaded ? '本机规则已加载' : '使用内置通用规则');
   const legacy = $('#luLegacyNotice');
   if (legacy) legacy.hidden = !state.legacyDataPresent;
   ['#luOverview', '#luMovies', '#luSettings'].forEach(
@@ -43,7 +46,7 @@ export async function loadState(signal, accept = () => true) {
           '</option>',
       )
       .join('');
-  if ($('#luBrowseLibrary').innerHTML !== markup) $('#luBrowseLibrary').innerHTML = markup;
+  setUiHtml($('#luBrowseLibrary'), markup);
   $('#luBrowseLibrary').value = current;
 }
 
@@ -75,13 +78,13 @@ export function recentBatches(rows) {
           '">' +
           escape(name(b.kind)) +
           ' · ' +
-          escape(b.language) +
+          escape(languageName(b.language)) +
           '</button><small class="lu-grow">完成 ' +
           (b.completed || 0) +
           '/' +
           b.total +
           (b.pending ? ' · 待处理 ' + b.pending : '') +
-          (b.problem ? ' · 问题 ' + b.problem : '') +
+          (b.problem ? ' · 历史失败/暂停 ' + b.problem : '') +
           (b.cancelled ? ' · 已取消' : '') +
           '</small><time class="lu-muted" datetime="' +
           escape(b.created_utc || '') +
@@ -104,7 +107,7 @@ export async function loadOverview(signal, accept = () => true) {
   if (!accept()) return;
   const set = (selector, html) => {
     const node = $(selector);
-    if (node.innerHTML !== html) node.innerHTML = html;
+    setUiHtml(node, html);
   };
   set(
     '#luCoverage',
@@ -128,6 +131,7 @@ export async function loadOverview(signal, accept = () => true) {
           (row.pending_display || 0) +
           ' · 保留原文 ' +
           (row.kept_original || 0) +
+          (row.empty ? ' · 空原文 ' + row.empty : '') +
           '</small></article>'
         );
       })

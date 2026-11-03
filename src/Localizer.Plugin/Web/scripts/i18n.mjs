@@ -460,6 +460,10 @@ const interfaceWords = {
   原文变化: 'Source changes',
   处理中断恢复: 'Recover interrupted work',
   执行异常: 'Execution error',
+  '历史失败/暂停': 'Historical failed/paused',
+  '失败/暂停为批次历史记录；当前待处理项见下方问题列表。':
+    'Failed/paused counts are batch history; see the issues below for items needing attention now.',
+  空原文: 'Empty original',
 };
 export const uiWords = {
   ...interfaceWords,
@@ -472,10 +476,8 @@ export const uiPattern = new RegExp(
 );
 const uiOriginals = new WeakMap(),
   uiAttributes = new WeakMap();
-export function paintUi() {
-  const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
+export function paintUi(root = page) {
+  const paintText = (node) => {
     const parent = node.parentElement;
     if (
       !parent ||
@@ -483,7 +485,7 @@ export function paintUi() {
         'style,script,textarea,input,#luUiLanguage option,#luModel option:not([value=""]),#luBrowseLibrary option:not([value=""]),.lu-read,.lu-data,pre,#luMovieList .lu-grow,#luTermList .lu-grow,#luPeopleList .lu-grow,#luEditorTitle,#luHistorySource',
       )
     )
-      continue;
+      return;
     let saved = uiOriginals.get(node);
     if (!saved || (node.nodeValue !== saved.original && node.nodeValue !== saved.rendered))
       saved = { original: node.nodeValue };
@@ -496,8 +498,17 @@ export function paintUi() {
     saved.rendered = rendered;
     uiOriginals.set(node, saved);
     if (node.nodeValue !== rendered) node.nodeValue = rendered;
+  };
+  if (root.nodeType === 3) paintText(root);
+  else {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) paintText(node);
   }
-  for (const el of page.querySelectorAll('[aria-label],[placeholder]')) {
+  const selector = '[aria-label],[placeholder]';
+  const elements = root.querySelectorAll ? [...root.querySelectorAll(selector)] : [];
+  if (root.matches?.(selector)) elements.unshift(root);
+  for (const el of elements) {
     const records = uiAttributes.get(el) || {};
     for (const key of ['aria-label', 'placeholder']) {
       if (!el.hasAttribute(key)) continue;
@@ -512,4 +523,22 @@ export function paintUi() {
     }
     uiAttributes.set(el, records);
   }
+}
+
+export function queueUiPaint(records) {
+  const pending = queueUiPaint.pending || (queueUiPaint.pending = new Set());
+  for (const record of records) {
+    if (record.type === 'characterData') pending.add(record.target);
+    else for (const node of record.addedNodes) pending.add(node);
+  }
+  if (!pending.size || queueUiPaint.scheduled) return;
+  queueUiPaint.scheduled = true;
+  queueMicrotask(() => {
+    queueUiPaint.scheduled = false;
+    const roots = [...pending].filter((node) => page.contains(node));
+    pending.clear();
+    for (const root of roots) {
+      if (!roots.some((other) => other !== root && other.contains(root))) paintUi(root);
+    }
+  });
 }

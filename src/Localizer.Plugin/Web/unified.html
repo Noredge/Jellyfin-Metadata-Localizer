@@ -74,13 +74,7 @@
 .lu-nav {
   border-bottom: 1px solid var(--lu-line);
   margin: 24px 0;
-}
-.lu-nav button {
-  border: 0;
-  border-radius: 0;
-  background: none;
-  padding: 12px 18px;
-  border-bottom: 2px solid transparent;
+  padding-bottom: 12px;
 }
 .lu-nav button[aria-selected='true'] {
   border-color: var(--lu-accent);
@@ -100,6 +94,9 @@
   min-height: 38px;
   cursor: pointer;
   background: var(--lu-panel);
+}
+.lu-app .lu-nav button {
+  padding: 8px 14px;
 }
 .lu-app button:disabled {
   opacity: 0.45;
@@ -323,7 +320,7 @@
   .lu-app dialog {
     padding: 16px;
   }
-  .lu-nav button {
+  .lu-app .lu-nav button {
     padding: 12px;
   }
   .lu-actions > button {
@@ -372,6 +369,7 @@
             <div id="luCoverage" class="lu-grid"></div>
             <div class="lu-card">
               <h2>最近任务</h2>
+              <p class="lu-muted">失败/暂停为批次历史记录；当前待处理项见下方问题列表。</p>
               <ul id="luBatches" class="lu-list lu-recent"></ul>
               <button id="luAllWork">查看处理明细</button>
             </div>
@@ -638,6 +636,25 @@ const status = (text, error = false, target = '#luStatus', owner = 'operation') 
 
 const uid = () => crypto.randomUUID().replaceAll('-', '');
 
+// Compare authoring values, not DOM text that may already be translated.
+function setUiText(node, value) {
+  const values = setUiText.values || (setUiText.values = new WeakMap());
+  if (values.get(node) === value) return;
+  values.set(node, value);
+  node.textContent = value;
+}
+
+function setUiHtml(node, value) {
+  const values = setUiHtml.values || (setUiHtml.values = new WeakMap());
+  if (values.get(node) === value) return;
+  values.set(node, value);
+  node.innerHTML = value;
+}
+
+function languageName(value) {
+  return value === 'zh-Hans' ? '简体中文' : value === 'en' ? 'English' : value;
+}
+
 const name = (v) => labels[v] || errors[v] || v || '—';
 
 const normalize = (v) =>
@@ -742,14 +759,17 @@ async function loadState(signal, accept = () => true) {
   const data = await api('state', undefined, signal);
   if (!accept()) return;
   state = data;
-  $('#luTarget').textContent = state.settings
-    ? state.settings.language === 'en'
-      ? '全局目标 · English'
-      : '全局目标 · 简体中文'
-    : state.health?.state || '未就绪';
+  setUiText(
+    $('#luTarget'),
+    state.settings
+      ? state.settings.language === 'en'
+        ? '全局目标 · English'
+        : '全局目标 · 简体中文'
+      : state.health?.state || '未就绪',
+  );
   $('#luMissing').hidden = state.ready;
   const local = $('#luLocalRules');
-  if (local) local.textContent = state.localRules?.loaded ? '本机规则已加载' : '使用内置通用规则';
+  if (local) setUiText(local, state.localRules?.loaded ? '本机规则已加载' : '使用内置通用规则');
   const legacy = $('#luLegacyNotice');
   if (legacy) legacy.hidden = !state.legacyDataPresent;
   ['#luOverview', '#luMovies', '#luSettings'].forEach(
@@ -769,7 +789,7 @@ async function loadState(signal, accept = () => true) {
           '</option>',
       )
       .join('');
-  if ($('#luBrowseLibrary').innerHTML !== markup) $('#luBrowseLibrary').innerHTML = markup;
+  setUiHtml($('#luBrowseLibrary'), markup);
   $('#luBrowseLibrary').value = current;
 }
 
@@ -801,13 +821,13 @@ function recentBatches(rows) {
           '">' +
           escape(name(b.kind)) +
           ' · ' +
-          escape(b.language) +
+          escape(languageName(b.language)) +
           '</button><small class="lu-grow">完成 ' +
           (b.completed || 0) +
           '/' +
           b.total +
           (b.pending ? ' · 待处理 ' + b.pending : '') +
-          (b.problem ? ' · 问题 ' + b.problem : '') +
+          (b.problem ? ' · 历史失败/暂停 ' + b.problem : '') +
           (b.cancelled ? ' · 已取消' : '') +
           '</small><time class="lu-muted" datetime="' +
           escape(b.created_utc || '') +
@@ -830,7 +850,7 @@ async function loadOverview(signal, accept = () => true) {
   if (!accept()) return;
   const set = (selector, html) => {
     const node = $(selector);
-    if (node.innerHTML !== html) node.innerHTML = html;
+    setUiHtml(node, html);
   };
   set(
     '#luCoverage',
@@ -854,6 +874,7 @@ async function loadOverview(signal, accept = () => true) {
           (row.pending_display || 0) +
           ' · 保留原文 ' +
           (row.kept_original || 0) +
+          (row.empty ? ' · 空原文 ' + row.empty : '') +
           '</small></article>'
         );
       })
@@ -1376,6 +1397,40 @@ function workVersion(row) {
   return (row.updated_utc || '') + '|' + row.state + '|' + row.attempt_count;
 }
 
+function renderWorkRows(entries, reset = false) {
+  const list = $('#luWorkList');
+  if (!entries.length) {
+    if (!list.querySelector('[data-work-empty]'))
+      list.innerHTML = '<li class="lu-muted" data-work-empty>暂无记录</li>';
+    return;
+  }
+  const rendered = renderWorkRows.values || (renderWorkRows.values = new WeakMap());
+  const existing = new Map([...list.children].map((node) => [node.dataset.workId, node]));
+  entries.forEach(([id, html], index) => {
+    let node = existing.get(id);
+    existing.delete(id);
+    if (!node || reset || rendered.get(node) !== html) {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      const next = template.content.firstElementChild;
+      if (node) node.replaceWith(next);
+      node = next;
+      rendered.set(node, html);
+    }
+    if (list.children[index] !== node) list.insertBefore(node, list.children[index] || null);
+  });
+  for (const node of existing.values()) node.remove();
+}
+
+function updateWorkClocks() {
+  for (const node of $$('#luWorkList [data-stage-start]')) {
+    setUiText(
+      node.querySelector('[data-stage-elapsed]'),
+      String(Math.max(0, Date.now() - Date.parse(node.dataset.stageStart))),
+    );
+  }
+}
+
 async function loadWork(preserveOpen = false, signal, accept = () => true) {
   const ticket = beginRead('work', signal),
     scope = JSON.stringify([workBatch, workTarget, workOffset]),
@@ -1388,7 +1443,8 @@ async function loadWork(preserveOpen = false, signal, accept = () => true) {
     if (workTarget) q.set('workId', workTarget);
     const rows = await api('work?' + q, undefined, ticket.signal);
     if (!current() || (preserveOpen && !$('#luWorkDialog').open)) return false;
-    if (view.scope !== scope || !preserveOpen) {
+    const reset = view.scope !== scope || !preserveOpen;
+    if (reset) {
       view.rows.clear();
       view.consents.clear();
     }
@@ -1440,97 +1496,98 @@ async function loadWork(preserveOpen = false, signal, accept = () => true) {
     }
     if (!current()) return false;
     view.rows = new Map(display.map((w) => [w.id, w]));
-    $('#luWorkList').innerHTML =
-      display
-        .map(
-          (w) =>
-            '<li data-work-id="' +
-            escape(w.id) +
-            '">' +
-            (w.pinned ? '<small class="lu-muted">正在查看 · 已移出当前分页</small>' : '') +
-            '<div class="lu-row"><div class="lu-grow"><strong><span class="lu-data">' +
-            escape(w.movie_name || '共享词条') +
-            '</span> · ' +
-            escape(name(w.field)) +
-            ' · ' +
-            escape(name(w.state)) +
-            '</strong><div class="lu-muted">' +
-            escape(name(w.wait_reason || w.step)) +
-            (w.error_code ? ' · ' + escape(name(w.error_code)) : '') +
-            '</div><small>原文：<span class="lu-data">' +
-            escape(w.original) +
-            (w.original_truncated ? '…' : '') +
-            '</span></small>' +
-            (w.result_text
-              ? '<small>已保存：<span class="lu-data">' +
-                escape(w.result_text) +
-                (w.result_truncated ? '…' : '') +
-                '</span></small>'
-              : '') +
-            '' +
-            (w.state === 'running'
-              ? '<small>当前阶段 ' +
-                Math.max(0, Date.now() - Date.parse(w.current_stage_started_utc)) +
-                ' ms</small>'
-              : '') +
-            '<small>请求 ' +
-            w.request_ms +
-            ' ms · 保存 ' +
-            (w.save_timing_measured ? w.save_ms + ' ms' : '未计量') +
-            ' · 显示 ' +
-            w.display_ms +
-            ' ms</small></div>' +
-            (w.media_id ? '<button data-movie="' + escape(w.media_id) + '">影片</button>' : '') +
-            (['failed', 'paused'].includes(w.state)
-              ? '<button data-retry="' + escape(w.id) + '">重试失败项</button>'
-              : '') +
-            (view.consents.get(w.id) === workVersion(w)
-              ? '<button data-consent="' +
-                escape(w.id) +
-                '" data-consent-version="' +
-                escape(workVersion(w)) +
-                '">接受可能重复计费并重试</button><button data-cancel-consent="' +
-                escape(w.id) +
-                '">取消确认</button>'
-              : '') +
-            '</div>' +
-            (w.original_truncated || w.result_truncated
-              ? '<details data-work-text="' +
-                escape(w.id) +
-                '" data-work-state="' +
-                escape(w.state) +
-                '" data-work-version="' +
-                escape(w.updated_utc || '') +
-                '|' +
-                escape(w.state) +
-                '"><summary>完整原文与结果</summary><div class="lu-read"><strong>原文</strong><pre class="lu-data" data-full-original style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><strong>已保存</strong><pre class="lu-data" data-full-result style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div></details>'
-              : '') +
-            '<details data-attempt="' +
-            escape(w.id) +
-            '" data-work-state="' +
-            escape(w.state) +
-            '" data-work-version="' +
-            escape(w.updated_utc || '') +
-            '|' +
-            escape(w.state) +
-            '|' +
-            w.attempt_count +
-            '"><summary>请求记录（' +
-            w.attempt_count +
-            '）</summary><div class="lu-read"></div></details></li>',
-        )
-        .join('') || '<li class="lu-muted">暂无记录</li>';
+    renderWorkRows(
+      display.map((w) => [
+        w.id,
+        '<li data-work-id="' +
+          escape(w.id) +
+          '">' +
+          (w.pinned ? '<small class="lu-muted">正在查看 · 已移出当前分页</small>' : '') +
+          '<div class="lu-row"><div class="lu-grow"><strong><span class="lu-data">' +
+          escape(w.movie_name || '共享词条') +
+          '</span> · ' +
+          escape(name(w.field)) +
+          ' · ' +
+          escape(name(w.state)) +
+          '</strong><div class="lu-muted">' +
+          escape(name(w.wait_reason || w.step)) +
+          (w.error_code ? ' · ' + escape(name(w.error_code)) : '') +
+          '</div><small>原文：<span class="lu-data">' +
+          escape(w.original) +
+          (w.original_truncated ? '…' : '') +
+          '</span></small>' +
+          (w.result_text
+            ? '<small>已保存：<span class="lu-data">' +
+              escape(w.result_text) +
+              (w.result_truncated ? '…' : '') +
+              '</span></small>'
+            : '') +
+          '' +
+          (w.state === 'running'
+            ? '<small data-stage-start="' +
+              escape(w.current_stage_started_utc) +
+              '">当前阶段 <span data-stage-elapsed>0</span> ms</small>'
+            : '') +
+          '<small>请求 ' +
+          w.request_ms +
+          ' ms · 保存 ' +
+          (w.save_timing_measured ? w.save_ms + ' ms' : '未计量') +
+          ' · 显示 ' +
+          w.display_ms +
+          ' ms</small></div>' +
+          (w.media_id ? '<button data-movie="' + escape(w.media_id) + '">影片</button>' : '') +
+          (['failed', 'paused'].includes(w.state)
+            ? '<button data-retry="' + escape(w.id) + '">重试失败项</button>'
+            : '') +
+          (view.consents.get(w.id) === workVersion(w)
+            ? '<button data-consent="' +
+              escape(w.id) +
+              '" data-consent-version="' +
+              escape(workVersion(w)) +
+              '">接受可能重复计费并重试</button><button data-cancel-consent="' +
+              escape(w.id) +
+              '">取消确认</button>'
+            : '') +
+          '</div>' +
+          (w.original_truncated || w.result_truncated
+            ? '<details data-work-text="' +
+              escape(w.id) +
+              '" data-work-state="' +
+              escape(w.state) +
+              '" data-work-version="' +
+              escape(w.updated_utc || '') +
+              '|' +
+              escape(w.state) +
+              '"><summary>完整原文与结果</summary><div class="lu-read"><strong>原文</strong><pre class="lu-data" data-full-original style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><strong>已保存</strong><pre class="lu-data" data-full-result style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div></details>'
+            : '') +
+          '<details data-attempt="' +
+          escape(w.id) +
+          '" data-work-state="' +
+          escape(w.state) +
+          '" data-work-version="' +
+          escape(w.updated_utc || '') +
+          '|' +
+          escape(w.state) +
+          '|' +
+          w.attempt_count +
+          '"><summary>请求记录（' +
+          w.attempt_count +
+          '）</summary><div class="lu-read"></div></details></li>',
+      ]),
+      reset,
+    );
+    updateWorkClocks();
     $('#luWorkPrev').disabled = !workOffset;
     $('#luWorkNext').disabled = rows.length < 30;
     for (const el of $$('#luWorkList details')) {
       const prior = retained.get(
         (el.dataset.workText ? 'text/' : 'attempt/') + (el.dataset.workText || el.dataset.attempt),
       );
-      if (prior) {
+      if (prior && prior !== el) {
         if (prior.dataset.workVersion !== el.dataset.workVersion) delete prior.dataset.loaded;
         prior.dataset.workVersion = el.dataset.workVersion;
         prior.dataset.workState = el.dataset.workState;
-        prior.querySelector('summary').textContent = el.querySelector('summary').textContent;
+        setUiText(prior.querySelector('summary'), el.querySelector('summary').textContent);
         el.replaceWith(prior);
       }
     }
@@ -1595,7 +1652,11 @@ async function loadWorkAttempts(el, signal) {
 }
 
 async function retryWork(id, acceptUnknown = false, expectedVersion = null) {
-  const result = await api('retry', { workId: id, acceptUnknown, expectedVersion });
+  const result = await api('retry', {
+    workId: id,
+    acceptUnknown,
+    expectedVersion,
+  });
   if (result.reused) {
     if (workTarget === id) workTarget = result.workId;
     status('已有相同任务，已复用。', false, '#luWorkStatus');
@@ -2457,6 +2518,10 @@ const interfaceWords = {
   原文变化: 'Source changes',
   处理中断恢复: 'Recover interrupted work',
   执行异常: 'Execution error',
+  '历史失败/暂停': 'Historical failed/paused',
+  '失败/暂停为批次历史记录；当前待处理项见下方问题列表。':
+    'Failed/paused counts are batch history; see the issues below for items needing attention now.',
+  空原文: 'Empty original',
 };
 const uiWords = {
   ...interfaceWords,
@@ -2469,10 +2534,8 @@ const uiPattern = new RegExp(
 );
 const uiOriginals = new WeakMap(),
   uiAttributes = new WeakMap();
-function paintUi() {
-  const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
+function paintUi(root = page) {
+  const paintText = (node) => {
     const parent = node.parentElement;
     if (
       !parent ||
@@ -2480,7 +2543,7 @@ function paintUi() {
         'style,script,textarea,input,#luUiLanguage option,#luModel option:not([value=""]),#luBrowseLibrary option:not([value=""]),.lu-read,.lu-data,pre,#luMovieList .lu-grow,#luTermList .lu-grow,#luPeopleList .lu-grow,#luEditorTitle,#luHistorySource',
       )
     )
-      continue;
+      return;
     let saved = uiOriginals.get(node);
     if (!saved || (node.nodeValue !== saved.original && node.nodeValue !== saved.rendered))
       saved = { original: node.nodeValue };
@@ -2493,8 +2556,17 @@ function paintUi() {
     saved.rendered = rendered;
     uiOriginals.set(node, saved);
     if (node.nodeValue !== rendered) node.nodeValue = rendered;
+  };
+  if (root.nodeType === 3) paintText(root);
+  else {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) paintText(node);
   }
-  for (const el of page.querySelectorAll('[aria-label],[placeholder]')) {
+  const selector = '[aria-label],[placeholder]';
+  const elements = root.querySelectorAll ? [...root.querySelectorAll(selector)] : [];
+  if (root.matches?.(selector)) elements.unshift(root);
+  for (const el of elements) {
     const records = uiAttributes.get(el) || {};
     for (const key of ['aria-label', 'placeholder']) {
       if (!el.hasAttribute(key)) continue;
@@ -2509,6 +2581,24 @@ function paintUi() {
     }
     uiAttributes.set(el, records);
   }
+}
+
+function queueUiPaint(records) {
+  const pending = queueUiPaint.pending || (queueUiPaint.pending = new Set());
+  for (const record of records) {
+    if (record.type === 'characterData') pending.add(record.target);
+    else for (const node of record.addedNodes) pending.add(node);
+  }
+  if (!pending.size || queueUiPaint.scheduled) return;
+  queueUiPaint.scheduled = true;
+  queueMicrotask(() => {
+    queueUiPaint.scheduled = false;
+    const roots = [...pending].filter((node) => page.contains(node));
+    pending.clear();
+    for (const root of roots) {
+      if (!roots.some((other) => other !== root && other.contains(root))) paintUi(root);
+    }
+  });
 }
 
 $$('[data-page]').forEach((el) => (el.onclick = () => show(el.dataset.page)));
@@ -2799,7 +2889,7 @@ $('#luTestConnection').onclick = () =>
 
 $('#luUiLanguage').value = uiLanguage;
 
-new MutationObserver(paintUi).observe(page, {
+new MutationObserver(queueUiPaint).observe(page, {
   subtree: true,
   childList: true,
   characterData: true,

@@ -1,3 +1,4 @@
+import {workFixture} from './work_dom_fixture.mjs';
 import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,10 +9,8 @@ const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
 const checks=[];const check=(name,fn)=>{fn();checks.push({name,passed:true});};
 const extract = functionSource;
-const nodes=new Map();const get=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',open:true,disabled:false});return nodes.get(id);};
-const calls=[];let handler=async()=>[];
-const c=vm.createContext({$:get,$$:()=>[],workBatch:null,workTarget:null,workOffset:0,URLSearchParams,Date,Math,AbortController,name:x=>x,escape:x=>String(x??''),api:async route=>{calls.push(route);return handler(route);}});
-for(const name of ['beginRead','workView','workVersion','loadWork','loadWorkText'])vm.runInContext(extract(name),c);
+const fixture=workFixture(),{c,get}=fixture;const calls=[];let handler=async()=>[];
+c.api=async route=>{calls.push(route);return handler(route);};
 const row={id:'work-fixture',field:'Overview',state:'completed',step:'verify',original:'原'.repeat(180),original_truncated:1,result_text:'译'.repeat(180),result_truncated:1,request_ms:5,save_ms:3,save_timing_measured:1,display_ms:7,attempt_count:1};
 handler=async()=>[row];await c.loadWork();
 check('truncated work summary offers collapsed full text without a fetch',()=>{assert(get('#luWorkList').innerHTML.includes('data-work-text="work-fixture"'));assert(get('#luWorkList').innerHTML.includes('完整原文与结果'));assert.equal(calls.length,1);});

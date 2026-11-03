@@ -6,6 +6,40 @@ export function workVersion(row) {
   return (row.updated_utc || '') + '|' + row.state + '|' + row.attempt_count;
 }
 
+export function renderWorkRows(entries, reset = false) {
+  const list = $('#luWorkList');
+  if (!entries.length) {
+    if (!list.querySelector('[data-work-empty]'))
+      list.innerHTML = '<li class="lu-muted" data-work-empty>暂无记录</li>';
+    return;
+  }
+  const rendered = renderWorkRows.values || (renderWorkRows.values = new WeakMap());
+  const existing = new Map([...list.children].map((node) => [node.dataset.workId, node]));
+  entries.forEach(([id, html], index) => {
+    let node = existing.get(id);
+    existing.delete(id);
+    if (!node || reset || rendered.get(node) !== html) {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      const next = template.content.firstElementChild;
+      if (node) node.replaceWith(next);
+      node = next;
+      rendered.set(node, html);
+    }
+    if (list.children[index] !== node) list.insertBefore(node, list.children[index] || null);
+  });
+  for (const node of existing.values()) node.remove();
+}
+
+export function updateWorkClocks() {
+  for (const node of $$('#luWorkList [data-stage-start]')) {
+    setUiText(
+      node.querySelector('[data-stage-elapsed]'),
+      String(Math.max(0, Date.now() - Date.parse(node.dataset.stageStart))),
+    );
+  }
+}
+
 export async function loadWork(preserveOpen = false, signal, accept = () => true) {
   const ticket = beginRead('work', signal),
     scope = JSON.stringify([workBatch, workTarget, workOffset]),
@@ -18,7 +52,8 @@ export async function loadWork(preserveOpen = false, signal, accept = () => true
     if (workTarget) q.set('workId', workTarget);
     const rows = await api('work?' + q, undefined, ticket.signal);
     if (!current() || (preserveOpen && !$('#luWorkDialog').open)) return false;
-    if (view.scope !== scope || !preserveOpen) {
+    const reset = view.scope !== scope || !preserveOpen;
+    if (reset) {
       view.rows.clear();
       view.consents.clear();
     }
@@ -70,97 +105,98 @@ export async function loadWork(preserveOpen = false, signal, accept = () => true
     }
     if (!current()) return false;
     view.rows = new Map(display.map((w) => [w.id, w]));
-    $('#luWorkList').innerHTML =
-      display
-        .map(
-          (w) =>
-            '<li data-work-id="' +
-            escape(w.id) +
-            '">' +
-            (w.pinned ? '<small class="lu-muted">正在查看 · 已移出当前分页</small>' : '') +
-            '<div class="lu-row"><div class="lu-grow"><strong><span class="lu-data">' +
-            escape(w.movie_name || '共享词条') +
-            '</span> · ' +
-            escape(name(w.field)) +
-            ' · ' +
-            escape(name(w.state)) +
-            '</strong><div class="lu-muted">' +
-            escape(name(w.wait_reason || w.step)) +
-            (w.error_code ? ' · ' + escape(name(w.error_code)) : '') +
-            '</div><small>原文：<span class="lu-data">' +
-            escape(w.original) +
-            (w.original_truncated ? '…' : '') +
-            '</span></small>' +
-            (w.result_text
-              ? '<small>已保存：<span class="lu-data">' +
-                escape(w.result_text) +
-                (w.result_truncated ? '…' : '') +
-                '</span></small>'
-              : '') +
-            '' +
-            (w.state === 'running'
-              ? '<small>当前阶段 ' +
-                Math.max(0, Date.now() - Date.parse(w.current_stage_started_utc)) +
-                ' ms</small>'
-              : '') +
-            '<small>请求 ' +
-            w.request_ms +
-            ' ms · 保存 ' +
-            (w.save_timing_measured ? w.save_ms + ' ms' : '未计量') +
-            ' · 显示 ' +
-            w.display_ms +
-            ' ms</small></div>' +
-            (w.media_id ? '<button data-movie="' + escape(w.media_id) + '">影片</button>' : '') +
-            (['failed', 'paused'].includes(w.state)
-              ? '<button data-retry="' + escape(w.id) + '">重试失败项</button>'
-              : '') +
-            (view.consents.get(w.id) === workVersion(w)
-              ? '<button data-consent="' +
-                escape(w.id) +
-                '" data-consent-version="' +
-                escape(workVersion(w)) +
-                '">接受可能重复计费并重试</button><button data-cancel-consent="' +
-                escape(w.id) +
-                '">取消确认</button>'
-              : '') +
-            '</div>' +
-            (w.original_truncated || w.result_truncated
-              ? '<details data-work-text="' +
-                escape(w.id) +
-                '" data-work-state="' +
-                escape(w.state) +
-                '" data-work-version="' +
-                escape(w.updated_utc || '') +
-                '|' +
-                escape(w.state) +
-                '"><summary>完整原文与结果</summary><div class="lu-read"><strong>原文</strong><pre class="lu-data" data-full-original style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><strong>已保存</strong><pre class="lu-data" data-full-result style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div></details>'
-              : '') +
-            '<details data-attempt="' +
-            escape(w.id) +
-            '" data-work-state="' +
-            escape(w.state) +
-            '" data-work-version="' +
-            escape(w.updated_utc || '') +
-            '|' +
-            escape(w.state) +
-            '|' +
-            w.attempt_count +
-            '"><summary>请求记录（' +
-            w.attempt_count +
-            '）</summary><div class="lu-read"></div></details></li>',
-        )
-        .join('') || '<li class="lu-muted">暂无记录</li>';
+    renderWorkRows(
+      display.map((w) => [
+        w.id,
+        '<li data-work-id="' +
+          escape(w.id) +
+          '">' +
+          (w.pinned ? '<small class="lu-muted">正在查看 · 已移出当前分页</small>' : '') +
+          '<div class="lu-row"><div class="lu-grow"><strong><span class="lu-data">' +
+          escape(w.movie_name || '共享词条') +
+          '</span> · ' +
+          escape(name(w.field)) +
+          ' · ' +
+          escape(name(w.state)) +
+          '</strong><div class="lu-muted">' +
+          escape(name(w.wait_reason || w.step)) +
+          (w.error_code ? ' · ' + escape(name(w.error_code)) : '') +
+          '</div><small>原文：<span class="lu-data">' +
+          escape(w.original) +
+          (w.original_truncated ? '…' : '') +
+          '</span></small>' +
+          (w.result_text
+            ? '<small>已保存：<span class="lu-data">' +
+              escape(w.result_text) +
+              (w.result_truncated ? '…' : '') +
+              '</span></small>'
+            : '') +
+          '' +
+          (w.state === 'running'
+            ? '<small data-stage-start="' +
+              escape(w.current_stage_started_utc) +
+              '">当前阶段 <span data-stage-elapsed>0</span> ms</small>'
+            : '') +
+          '<small>请求 ' +
+          w.request_ms +
+          ' ms · 保存 ' +
+          (w.save_timing_measured ? w.save_ms + ' ms' : '未计量') +
+          ' · 显示 ' +
+          w.display_ms +
+          ' ms</small></div>' +
+          (w.media_id ? '<button data-movie="' + escape(w.media_id) + '">影片</button>' : '') +
+          (['failed', 'paused'].includes(w.state)
+            ? '<button data-retry="' + escape(w.id) + '">重试失败项</button>'
+            : '') +
+          (view.consents.get(w.id) === workVersion(w)
+            ? '<button data-consent="' +
+              escape(w.id) +
+              '" data-consent-version="' +
+              escape(workVersion(w)) +
+              '">接受可能重复计费并重试</button><button data-cancel-consent="' +
+              escape(w.id) +
+              '">取消确认</button>'
+            : '') +
+          '</div>' +
+          (w.original_truncated || w.result_truncated
+            ? '<details data-work-text="' +
+              escape(w.id) +
+              '" data-work-state="' +
+              escape(w.state) +
+              '" data-work-version="' +
+              escape(w.updated_utc || '') +
+              '|' +
+              escape(w.state) +
+              '"><summary>完整原文与结果</summary><div class="lu-read"><strong>原文</strong><pre class="lu-data" data-full-original style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><strong>已保存</strong><pre class="lu-data" data-full-result style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div></details>'
+            : '') +
+          '<details data-attempt="' +
+          escape(w.id) +
+          '" data-work-state="' +
+          escape(w.state) +
+          '" data-work-version="' +
+          escape(w.updated_utc || '') +
+          '|' +
+          escape(w.state) +
+          '|' +
+          w.attempt_count +
+          '"><summary>请求记录（' +
+          w.attempt_count +
+          '）</summary><div class="lu-read"></div></details></li>',
+      ]),
+      reset,
+    );
+    updateWorkClocks();
     $('#luWorkPrev').disabled = !workOffset;
     $('#luWorkNext').disabled = rows.length < 30;
     for (const el of $$('#luWorkList details')) {
       const prior = retained.get(
         (el.dataset.workText ? 'text/' : 'attempt/') + (el.dataset.workText || el.dataset.attempt),
       );
-      if (prior) {
+      if (prior && prior !== el) {
         if (prior.dataset.workVersion !== el.dataset.workVersion) delete prior.dataset.loaded;
         prior.dataset.workVersion = el.dataset.workVersion;
         prior.dataset.workState = el.dataset.workState;
-        prior.querySelector('summary').textContent = el.querySelector('summary').textContent;
+        setUiText(prior.querySelector('summary'), el.querySelector('summary').textContent);
         el.replaceWith(prior);
       }
     }
@@ -225,7 +261,11 @@ export async function loadWorkAttempts(el, signal) {
 }
 
 export async function retryWork(id, acceptUnknown = false, expectedVersion = null) {
-  const result = await api('retry', { workId: id, acceptUnknown, expectedVersion });
+  const result = await api('retry', {
+    workId: id,
+    acceptUnknown,
+    expectedVersion,
+  });
   if (result.reused) {
     if (workTarget === id) workTarget = result.workId;
     status('已有相同任务，已复用。', false, '#luWorkStatus');

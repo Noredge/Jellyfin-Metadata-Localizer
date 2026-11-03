@@ -286,7 +286,7 @@ $('#luTestConnection').onclick = () =>
 
 $('#luUiLanguage').value = uiLanguage;
 
-new MutationObserver(paintUi).observe(page, {
+new MutationObserver(queueUiPaint).observe(page, {
   subtree: true,
   childList: true,
   characterData: true,

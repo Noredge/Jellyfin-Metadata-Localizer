@@ -10,6 +10,7 @@ function fixture(){
  const c=vm.createContext({AbortController,Map,Date:{now:()=>now},document:{hidden:false},state:{ready:true},active:'overview',polling:false,pollAbort:null,pollEpoch:0,pageVisible:true,statusRevision:0,statusOwners:new Map(),$: $,name:String,escape:String,labels:{Name:'title',Overview:'overview',Genres:'genres'},recentBatches:JSON.stringify,
   api:async route=>{calls.push(route);if(handler)return handler(route);return route==='state'?{ready:true,settings:{language:'zh-Hans'},health:{state:'Ready',updatedUtc:now},executionEmptyChecks:now,libraries:[],observationPerformance:{elapsedMs:now}}:{fields:[{field:'Name',translated:version,denominator:2}],issues:[],batches:[],active};}});
  c.status=(text,error=false,target='#luStatus',owner='operation')=>{c.statusRevision++;c.statusOwners.set(target,owner);$(target).textContent=text;};
+ for(const helper of ['setUiText','setUiHtml'])vm.runInContext(functionSource(helper),c);
  for(const prefix of ['async function loadState(','async function loadOverview('])vm.runInContext(functionSource(prefix.match(/function (\w+)/)[1]),c);
  vm.runInContext(pollingSource(),c);
  return {c,calls,$,tick:ms=>now=ms,change:()=>version++,busy:x=>active=x,setHandler:fn=>handler=fn};

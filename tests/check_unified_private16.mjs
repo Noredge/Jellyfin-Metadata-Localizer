@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
 const line = prefix => functionSource(prefix.match(/function (\w+)/)[1]);
-const functions=[line('async function run('),line('async function loadState('),line('async function loadOverview('),line('function validateConnectionDraft('),pollingSource(),line('async function start(')].join('\n');
+const functions=[functionSource('setUiText'),functionSource('setUiHtml'),line('async function run('),line('async function loadState('),line('async function loadOverview('),line('function validateConnectionDraft('),pollingSource(),line('async function start(')].join('\n');
 const checks=[];
 const check=(name,fn)=>{fn();checks.push({name,passed:true});};
 function fixture(){

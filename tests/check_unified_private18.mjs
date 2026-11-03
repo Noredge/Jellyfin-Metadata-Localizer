@@ -1,3 +1,4 @@
+import {workFixture} from './work_dom_fixture.mjs';
 import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,11 +9,9 @@ const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
 const checks=[];const check=(name,fn)=>{fn();checks.push({name,passed:true});};
 const extract = functionSource;
-const elements=new Map();const get=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',disabled:false,open:false,showModal(){this.open=true;},close(){this.open=false;}});return elements.get(id);};
-let response;const calls=[];
-const c=vm.createContext({$:get,$$:()=>[],api:async route=>{calls.push(route);return response;},escape:x=>String(x??''),name:x=>x,URLSearchParams,Date,Math,AbortController,
-  issueKind:'translation',issueCode:'synthetic_failure',issueOffset:0,workBatch:null,workTarget:null,workOffset:0,labels:{Name:'标题',Overview:'简介',Genres:'分类'},status:()=>{},recentBatches:()=>''});
-for(const name of ['beginRead','workView','workVersion','loadIssues','loadWork','openWork','loadOverview','retryWork'])vm.runInContext(extract(name),c);
+const fixture=workFixture(),{c,get}=fixture;let response;const calls=[];
+c.api=async route=>{calls.push(route);return response;};c.labels={Name:'标题',Overview:'简介',Genres:'分类'};c.recentBatches=()=>'';
+vm.runInContext(extract('loadOverview'),c);
 response={items:[{target_kind:'term',name:'测试词条',field:'Term',work_id:'term-work',media_id:null,error_code:'synthetic_failure'}],total:1};await c.loadIssues();
 check('independent failure opens a term task instead of a null movie',()=>{const s=get('#luIssueList').innerHTML;assert(s.includes('data-issue-work="term-work"'));assert(!s.includes('data-issue-movie'));assert(s.includes('查看词条任务'));});
 response={items:[{target_kind:'media',name:'影片',field:'Genres',work_id:'shared',media_id:'movie-id',error_code:'synthetic_failure'}],total:1};await c.loadIssues();

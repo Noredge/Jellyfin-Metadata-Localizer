@@ -16,7 +16,7 @@ let personError;try{await errorContext.api('people',{});}catch(e){personError=e;
 check('alias conflict response gives actionable UI error without losing its code',()=>{assert.equal(personError.code,'person_alias_conflict');assert(personError.message.includes('冲突'));assert(personError.message.includes('修正'));});
 const elements=new Map();const get=s=>{if(!elements.has(s))elements.set(s,{value:'',innerHTML:'',textContent:'',hidden:false});return elements.get(s);};
 let legacy=true;const c=vm.createContext({state:null,active:'overview',$:get,name:String,escape:String,api:async()=>({ready:false,legacyDataPresent:legacy,health:{state:'Unavailable'},libraries:[]}),status:()=>{}});
-vm.runInContext(functionSource('loadState'),c);await c.loadState();
+vm.runInContext(['setUiText','setUiHtml','loadState'].map(functionSource).join('\n'),c);await c.loadState();
 check('setup displays old-data notice only when applicable',()=>assert.equal(get('#luLegacyNotice').hidden,false));legacy=false;await c.loadState();
 check('fresh installation hides older-data notice',()=>assert.equal(get('#luLegacyNotice').hidden,true));
 const result={status:'passed',checks,realModelRequests:0};if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Space the navigation divider below its buttons, clarify batch history versus current issues, and show empty-original counts and readable target languages.
+- Reuse unchanged overview markup and keyed work rows, update running clocks in place, and translate only changed DOM subtrees.
+- Match movie searches once per request for both totals and pagination, retaining empty-page totals and all historical search semantics without a persistent cache.
 - Reuse enumerated movies and library settings within one inventory observation. Display-name reads use the host's item lookup; request and write boundaries continue to read fresh sources.
 - Load person rules only when a saved version actually needs name processing. Share a lazy rule snapshot within a dictionary-render transaction while retaining immutable text and legacy ambiguity protection.
 - Group fill, language and submission reads by movie so their existing bounded read scopes share NFO bytes, XML parsing and host resolution.

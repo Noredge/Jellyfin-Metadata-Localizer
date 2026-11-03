@@ -8,6 +8,25 @@ export const status = (text, error = false, target = '#luStatus', owner = 'opera
 
 export const uid = () => crypto.randomUUID().replaceAll('-', '');
 
+// Compare authoring values, not DOM text that may already be translated.
+export function setUiText(node, value) {
+  const values = setUiText.values || (setUiText.values = new WeakMap());
+  if (values.get(node) === value) return;
+  values.set(node, value);
+  node.textContent = value;
+}
+
+export function setUiHtml(node, value) {
+  const values = setUiHtml.values || (setUiHtml.values = new WeakMap());
+  if (values.get(node) === value) return;
+  values.set(node, value);
+  node.innerHTML = value;
+}
+
+export function languageName(value) {
+  return value === 'zh-Hans' ? '简体中文' : value === 'en' ? 'English' : value;
+}
+
 export const name = (v) => labels[v] || errors[v] || v || '—';
 
 export const normalize = (v) =>

@@ -45,6 +45,18 @@ static class ReadModelChecks
         var batches=recent.RootElement.GetProperty("Batches").EnumerateArray().ToArray();
         Check("overview shows only three newest batches with their submission timestamps",batches.Length==3&&batches.Select(x=>x.GetProperty("id").GetString()).SequenceEqual(new[]{"recent-5","recent-4","recent-3"})&&batches.All(x=>x.GetProperty("created_utc").GetString()!.StartsWith("2026-10-27T18:",StringComparison.Ordinal)));
         using(var db=database.Open()) Check("recent task limit preserves all older batch history",UnifiedDatabase.Scalar<long>(db,null,"SELECT COUNT(*) FROM batches")==6);
+        var miss=read.Movies("absent-search-unique",null,"all",0,30);
+        Check("single matched query returns zero total and empty items on a miss",miss.Total==0&&miss.Items.Length==0);
+        var beyond=read.Movies("fixture",null,"all",30,1);
+        Check("out of range pagination retains matching total without a null item",beyond.Total==1&&beyond.Items.Length==0);
+        var historical=read.Movies("未选用的新人工稿",library,"manual",0,1);
+        Check("single match retains unselected history and library filter semantics",historical.Total==1&&historical.Items.Length==1&&(string)historical.Items[0]["id"]! == media);
+        Check("internal match count is excluded from public movie item shape",!historical.Items[0].ContainsKey("match_total"));
+        Check("other library scope never leaks matches or counts",read.Movies("fixture",Guid.NewGuid().ToString("N"),"all",0,30) is {Total:0,Items.Length:0});
+        var later=content.RegisterMedia(new("server",library,Guid.NewGuid().ToString("N")),Path.Combine(root,"z-other.mp4"),"{}");
+        content.Observe(later,"Name","Z-last","{}");
+        var first=read.Movies("",null,"all",0,1);var second=read.Movies("",null,"all",1,1);
+        Check("materialized matches retain stable bounded ordering and totals",first.Total==2&&second.Total==2&&first.Items.Length==1&&second.Items.Length==1&&(string)first.Items[0]["id"]! != (string)second.Items[0]["id"]!);
         File.WriteAllText(Path.Combine(root,"read-checks.json"),JsonSerializer.Serialize(new{status="passed",checks},new JsonSerializerOptions{WriteIndented=true}));
     }
 }

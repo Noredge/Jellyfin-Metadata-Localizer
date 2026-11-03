@@ -15,10 +15,12 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Public setup checks failed'}
     & $Node tests/check_web_sources.mjs (Join-Path $evidence 'web-sources-checks.json')
     if($LASTEXITCODE -ne 0){throw 'Web source and embedded page checks failed'}
+    & $Node tests/check_ui_performance.mjs (Join-Path $evidence 'ui-performance-checks.json')
+    if($LASTEXITCODE -ne 0){throw 'UI rendering and translation checks failed'}
     & $Python scripts/Privacy-Check.py
     if($LASTEXITCODE -ne 0){throw 'Privacy checks failed'}
     $summary=Get-Content -LiteralPath (Join-Path $evidence 'VERIFICATION.json') -Raw|ConvertFrom-Json
-    foreach($file in @('backup-checks.json','adoption-checks.json','public-ui-checks.json','web-sources-checks.json')){
+    foreach($file in @('backup-checks.json','adoption-checks.json','public-ui-checks.json','web-sources-checks.json','ui-performance-checks.json')){
         $r=Get-Content -LiteralPath (Join-Path $evidence $file) -Raw|ConvertFrom-Json
         if($r.status -ne 'passed' -or @($r.checks|Where-Object{-not $_.passed}).Count){throw 'Failed extra check'}
         $summary.checks+=$r.checks.Count

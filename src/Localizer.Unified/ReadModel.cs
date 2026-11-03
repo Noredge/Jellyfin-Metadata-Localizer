@@ -78,15 +78,33 @@ public sealed partial class ReadModel(UnifiedDatabase database)
               OR $filter='original' AND EXISTS(SELECT 1 FROM display_intents d WHERE d.media_id=m.id AND d.keep_original=1))
             """;
         using var db = database.OpenRead(); var args = new (string, object?)[] { ("$q", search), ("$library", libraryId), ("$filter", filter), ("$offset", offset), ("$limit", limit) };
-        var total = Scalar<long>(db, null, CurrentIssues + " SELECT COUNT(*) FROM media_items m WHERE " + where, args);
-        var items = Rows(db, CurrentIssues + "\n" + """
+        const string columns = """
             SELECT m.id,m.library_id,m.item_id,m.media_path,
               coalesce((SELECT CASE WHEN d.state='applied' THEN d.desired_value ELSE d.expected_value END FROM display_intents d WHERE d.media_id=m.id AND d.field='Name'),
                 (SELECT s.content FROM media_fields f JOIN source_versions s ON s.id=f.source_id WHERE f.media_id=m.id AND f.field='Name'),m.item_id) AS name,
               (SELECT COUNT(*) FROM work_items w WHERE w.media_id=m.id AND w.state IN('queued','running','waiting','paused')) AS pending,
               (SELECT COUNT(DISTINCT i.field) FROM current_issues i WHERE i.media_id=m.id AND i.issue_kind='source' AND i.target_kind='media') AS source_problems
-            FROM media_items m WHERE
-            """ + " " + where + " ORDER BY name COLLATE NOCASE,m.id LIMIT $limit OFFSET $offset", args);
+            """;
+        // An empty search short-circuits history matching already; keep its lightweight path.
+        if (search.Length == 0)
+        {
+            var count = Scalar<long>(db, null, CurrentIssues + " SELECT COUNT(*) FROM media_items m WHERE " + where, args);
+            var page = Rows(db, CurrentIssues + "\n" + columns + " FROM media_items m WHERE " + where
+                + " ORDER BY name COLLATE NOCASE,m.id LIMIT $limit OFFSET $offset", args);
+            return new(count, page, offset, limit);
+        }
+        // Match history once per request, then reuse the IDs for count and pagination.
+        // The totals row survives empty/out-of-range pages; no persistent cache is involved.
+        var rows = Rows(db, CurrentIssues + ", matched AS MATERIALIZED (SELECT m.id FROM media_items m WHERE " + where
+            + "), paged AS (" + columns + """
+             FROM media_items m JOIN matched hit ON hit.id=m.id
+            ORDER BY name COLLATE NOCASE,m.id LIMIT $limit OFFSET $offset)
+            SELECT totals.total AS match_total,paged.* FROM (SELECT COUNT(*) AS total FROM matched) totals
+            LEFT JOIN paged ON 1=1 ORDER BY paged.name COLLATE NOCASE,paged.id
+            """, args);
+        var total = (long)rows[0]["match_total"]!;
+        var items = rows.Where(x => x["id"] is not null).ToArray();
+        foreach (var item in items) item.Remove("match_total");
         return new(total, items, offset, limit);
     }
     public object Attempts(string workId, int offset, int limit)
