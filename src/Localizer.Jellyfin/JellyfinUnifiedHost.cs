@@ -17,11 +17,20 @@ public sealed record UnifiedTitleBindingView(string Observation, string MediaPat
 
 /// <summary>Native read/write boundary. Only the plugin database and verified NFO sources supply originals.</summary>
 public sealed class JellyfinUnifiedHost(ILibraryManager library, IApplicationHost host, UnifiedDatabase database)
-    : IUnifiedHost, IUnifiedInventory, IUnifiedObservationHints, IUnifiedReadScope
+    : IUnifiedHost, IUnifiedInventory, IUnifiedObservationHints, IUnifiedReadScope, IUnifiedInventoryReadScope
 {
     private readonly SettingsStore settings = new(database);
     private readonly ContentStore content = new(database);
     private readonly AsyncLocal<MediaReadScope?> currentRead = new();
+    private readonly AsyncLocal<InventoryReadScope?> currentInventory = new();
+    private sealed class InventoryReadScope(JellyfinUnifiedHost owner, InventoryReadScope? previous) : IDisposable
+    {
+        public Dictionary<MediaIdentity, (Movie Movie, bool SaversDisabled)> Movies { get; } = new();
+        public bool Disposed { get; private set; }
+        public void Dispose() { Disposed = true; Movies.Clear(); owner.currentInventory.Value = previous; }
+    }
+    public IDisposable BeginInventoryReadScope()
+    { var scope = new InventoryReadScope(this, currentInventory.Value); currentInventory.Value = scope; return scope; }
     private sealed class MediaReadScope(JellyfinUnifiedHost owner, MediaIdentity key, MediaReadScope? previous) : IDisposable
     {
         public MediaIdentity Key { get; } = key;
@@ -39,6 +48,13 @@ public sealed class JellyfinUnifiedHost(ILibraryManager library, IApplicationHos
     private (Movie Movie, bool SaversDisabled)? Resolve(MediaIdentity key, HashSet<Guid> scopes, string? path, MediaReadScope? scope)
     {
         if (scope is not null && scope.ResolvedPath == path && scope.Resolved is not null) return scope.Resolved;
+        if (scope is not null && currentInventory.Value is { Disposed: false } inventory
+            && key.ServerId == host.SystemId && Guid.TryParse(key.LibraryId, out var libraryId) && scopes.Contains(libraryId)
+            && inventory.Movies.TryGetValue(key, out var enumerated) && path is not null && SamePath(path, enumerated.Movie.Path))
+        {
+            using var reused = OperationTimings.Measure("host_inventory_reuse");
+            scope.ResolvedPath = path; scope.Resolved = enumerated; return enumerated;
+        }
         using var timing = OperationTimings.Measure("host_resolve");
         var resolved = JellyfinMovieAccess.Resolve(library, host, scopes, new(key.ServerId, key.LibraryId, key.ItemId), path);
         if (scope is not null) { scope.ResolvedPath = path; scope.Resolved = resolved; }
@@ -57,8 +73,10 @@ public sealed class JellyfinUnifiedHost(ILibraryManager library, IApplicationHos
         var ids = itemIds.Select(Guid.Parse).Distinct().ToArray();
         if (ids.Length == 0) return new Dictionary<string, string>();
         if (ids.Length > 100) throw new ArgumentException("PageLimitExceeded");
-        return library.GetItemList(new InternalItemsQuery { ItemIds = ids, IncludeItemTypes = [BaseItemKind.Movie] })
-            .OfType<Movie>().ToDictionary(x => x.Id.ToString("N"), x => x.Name, StringComparer.Ordinal);
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var id in ids)
+            if (id != Guid.Empty && library.GetItemById(id) is Movie movie) result[id.ToString("N")] = movie.Name;
+        return result;
     }
     public async Task<UnifiedTitleBindingView> TitleBindingAsync(MediaIdentity key, CancellationToken token)
     {
@@ -110,13 +128,17 @@ public sealed class JellyfinUnifiedHost(ILibraryManager library, IApplicationHos
         {
             token.ThrowIfCancellationRequested();
             if (!Guid.TryParse(id, out var folderId)) throw new ArgumentException("InvalidLibrary");
+            var inventory = currentInventory.Value is { Disposed: false } active ? active : null;
+            var folder = inventory is null ? null : library.GetVirtualFolders().SingleOrDefault(x => Guid.TryParse(x.ItemId, out var value) && value == folderId);
             foreach (var movie in library.GetItemList(new InternalItemsQuery { ParentId = folderId, Recursive = true,
                 IncludeItemTypes = [BaseItemKind.Movie] }).OfType<Movie>())
             {
                 token.ThrowIfCancellationRequested();
                 var collections = library.GetCollectionFolders(movie).Select(x => x.Id).Distinct().ToArray();
                 if (collections.Length != 1 || collections[0] != folderId || !Path.IsPathFullyQualified(movie.Path)) continue;
-                result.Add(new(new(host.SystemId, folderId.ToString("N"), movie.Id.ToString("N")), movie.Path));
+                var key = new MediaIdentity(host.SystemId, folderId.ToString("N"), movie.Id.ToString("N"));
+                result.Add(new(key, movie.Path));
+                if (inventory is not null && folder is not null) inventory.Movies[key] = (movie, folder.LibraryOptions?.MetadataSavers is { Length: 0 });
             }
         }
         return Task.FromResult(result.ToArray());

@@ -1,11 +1,11 @@
 #Requires -Version 5.1
 [CmdletBinding()]
-param([string]$Dotnet = 'dotnet', [string]$Python = 'python')
+param([string]$Dotnet = 'dotnet', [string]$Python = 'python', [string]$Node = 'node')
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 [xml]$versionProperties=Get-Content -LiteralPath (Join-Path $repo 'Directory.Build.props') -Raw
 $assemblyVersion=$versionProperties.Project.PropertyGroup.AssemblyVersion
-& (Join-Path $PSScriptRoot 'Build.ps1') -Dotnet $Dotnet
+& (Join-Path $PSScriptRoot 'Build.ps1') -Dotnet $Dotnet -Node $Node
 Push-Location $repo
 try {
     & $Python scripts/Privacy-Check.py

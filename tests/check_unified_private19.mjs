@@ -1,3 +1,4 @@
+import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -6,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
 const checks=[];const check=(name,fn)=>{fn();checks.push({name,passed:true});};
-function extract(name){const start=html.indexOf('function '+name+'(');assert(start>=0);return (html.slice(start-6,start)==='async '?'async ':'')+html.slice(start,html.indexOf('\n',start));}
+const extract = functionSource;
 const nodes=new Map();const get=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',open:true,disabled:false});return nodes.get(id);};
 const calls=[];let handler=async()=>[];
 const c=vm.createContext({$:get,$$:()=>[],workBatch:null,workTarget:null,workOffset:0,URLSearchParams,Date,Math,AbortController,name:x=>x,escape:x=>String(x??''),api:async route=>{calls.push(route);return handler(route);}});

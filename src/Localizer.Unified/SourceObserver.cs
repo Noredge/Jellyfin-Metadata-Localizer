@@ -9,6 +9,11 @@ public interface IUnifiedInventory
 {
     Task<HostMedia[]> ListAsync(string[] libraryIds, CancellationToken token);
 }
+public interface IUnifiedInventoryReadScope
+{
+    // A single enumeration/observation only. Never used for sending or host writes.
+    IDisposable BeginInventoryReadScope();
+}
 public interface IUnifiedObservationHints
 {
     // An optimization hint only. Every send and host write still reads trusted sources again.
@@ -31,6 +36,7 @@ public sealed class SourceObserver(WorkStore work, IUnifiedHost host, IUnifiedIn
         try
         {
             using var timing = Localizer.Core.OperationTimings.Measure("observe_all");
+            using var inventoryRead = (inventory as IUnifiedInventoryReadScope)?.BeginInventoryReadScope();
             var start = settings.Read(); HostMedia[] items;
             using (Localizer.Core.OperationTimings.Measure("inventory_list")) items = await inventory.ListAsync(start.ManagedLibraries, token);
             var seen = new HashSet<string>(StringComparer.Ordinal); var group = Id();

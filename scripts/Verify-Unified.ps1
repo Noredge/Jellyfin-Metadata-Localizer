@@ -21,7 +21,7 @@ foreach($relative in $projects){
     $project=Join-Path $repo $relative
     & $Dotnet restore $project --locked-mode -m:1 /nodeReuse:false -p:NuGetAudit=false *> (Join-Path $target "restore-$index.log")
     if($LASTEXITCODE -ne 0){throw "Locked restore failed; inspect restore-$index.log"}
-    & $Dotnet build $project -c Release --no-restore --nologo -m:1 /nodeReuse:false -p:UseSharedCompilation=false "-p:SourceRevisionId=$head" *> (Join-Path $target "build-$index.log")
+    & $Dotnet build $project -c Release --no-restore --nologo -m:1 /nodeReuse:false -p:UseSharedCompilation=false "-p:SourceRevisionId=$head" "-p:NodeExecutable=$Node" *> (Join-Path $target "build-$index.log")
     if($LASTEXITCODE -ne 0){throw "Build failed; inspect build-$index.log"}
 }
 $checks=Join-Path $repo 'tests/Localizer.Unified.Checks/bin/Release/net10.0/Localizer.Unified.Checks.dll'

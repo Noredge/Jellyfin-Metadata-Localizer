@@ -1,3 +1,4 @@
+import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -5,8 +6,8 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
-const line=prefix=>{const found=html.split(/\r?\n/).find(x=>x.startsWith(prefix));assert(found,prefix);return found;};
-const functions=[line('async function run('),line('async function loadState('),line('async function loadOverview('),line('function validateConnectionDraft('),html.slice(html.indexOf('function invalidatePoll('),html.indexOf('async function start(')),line('async function start(')].join('\n');
+const line = prefix => functionSource(prefix.match(/function (\w+)/)[1]);
+const functions=[line('async function run('),line('async function loadState('),line('async function loadOverview('),line('function validateConnectionDraft('),pollingSource(),line('async function start(')].join('\n');
 const checks=[];
 const check=(name,fn)=>{fn();checks.push({name,passed:true});};
 function fixture(){

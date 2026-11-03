@@ -252,14 +252,19 @@ public sealed class UnifiedController(UnifiedRuntime runtime) : ControllerBase
         if (runtime.Work.TryReplay(request.CommandId, kind, preview.SettingsRevision, preview.Targets.Select(x => (x.MediaId, x.Field)).ToArray(), preview.Force, previewId: request.PreviewId) is { } replay) return replay;
         if (DateTimeOffset.Parse(expires, System.Globalization.CultureInfo.InvariantCulture) <= DateTimeOffset.UtcNow) throw new InvalidOperationException("PreviewExpired");
         var seeds = new List<WorkSeed>();
-        foreach (var target in preview.Targets)
+        foreach (var group in preview.Targets.GroupBy(x => x.MediaId))
         {
-            var current = Data.ReadField(target.MediaId, target.Field) ?? throw new KeyNotFoundException();
-            if (current.SourceId != target.SourceId || current.SourceRevision != target.SourceRevision || current.ControlRevision != target.ControlRevision || current.RenderRevision != target.RenderRevision)
-                throw new InvalidOperationException("RevisionConflict");
-            var actual = await runtime.Host.ReadAsync(Identity(target.MediaId), target.Field, HttpContext.RequestAborted);
-            if (!actual.Present || actual.SourceError is not null || Hash(actual.Display) != target.ExpectedDisplayHash) throw new InvalidOperationException("RevisionConflict");
-            seeds.Add(new(current, actual.Display));
+            var identity = Identity(group.Key); var details = Data.ReadDetails(group.Key);
+            using var sourceRead = runtime.Host.BeginReadScope(identity, details.Settings);
+            foreach (var target in group)
+            {
+                var current = details.Fields.SingleOrDefault(x => x.State.Field == target.Field)?.State ?? throw new KeyNotFoundException();
+                if (current.SourceId != target.SourceId || current.SourceRevision != target.SourceRevision || current.ControlRevision != target.ControlRevision || current.RenderRevision != target.RenderRevision)
+                    throw new InvalidOperationException("RevisionConflict");
+                var actual = await runtime.Host.ReadAsync(identity, target.Field, HttpContext.RequestAborted);
+                if (!actual.Present || actual.SourceError is not null || Hash(actual.Display) != target.ExpectedDisplayHash) throw new InvalidOperationException("RevisionConflict");
+                seeds.Add(new(current, actual.Display));
+            }
         }
         var receipt = runtime.Work.Submit(request.CommandId, kind, preview.SettingsRevision, [.. seeds], preview.Force, previewId: request.PreviewId);
         runtime.Notify(); return receipt;

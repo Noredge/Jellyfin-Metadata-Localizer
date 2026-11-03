@@ -1,3 +1,4 @@
+import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
@@ -9,8 +10,8 @@ function fixture(){
  const c=vm.createContext({AbortController,Map,Date:{now:()=>now},document:{hidden:false},state:{ready:true},active:'overview',polling:false,pollAbort:null,pollEpoch:0,pageVisible:true,statusRevision:0,statusOwners:new Map(),$: $,name:String,escape:String,labels:{Name:'title',Overview:'overview',Genres:'genres'},recentBatches:JSON.stringify,
   api:async route=>{calls.push(route);if(handler)return handler(route);return route==='state'?{ready:true,settings:{language:'zh-Hans'},health:{state:'Ready',updatedUtc:now},executionEmptyChecks:now,libraries:[],observationPerformance:{elapsedMs:now}}:{fields:[{field:'Name',translated:version,denominator:2}],issues:[],batches:[],active};}});
  c.status=(text,error=false,target='#luStatus',owner='operation')=>{c.statusRevision++;c.statusOwners.set(target,owner);$(target).textContent=text;};
- for(const prefix of ['async function loadState(','async function loadOverview('])vm.runInContext(html.split(/\r?\n/).find(x=>x.startsWith(prefix)),c);
- vm.runInContext(html.slice(html.indexOf('function invalidatePoll('),html.indexOf('async function start(')),c);
+ for(const prefix of ['async function loadState(','async function loadOverview('])vm.runInContext(functionSource(prefix.match(/function (\w+)/)[1]),c);
+ vm.runInContext(pollingSource(),c);
  return {c,calls,$,tick:ms=>now=ms,change:()=>version++,busy:x=>active=x,setHandler:fn=>handler=fn};
 }
 let f=fixture();await f.c.poll(true);f.tick(2000);await f.c.poll(true);

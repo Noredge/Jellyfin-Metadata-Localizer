@@ -1,5 +1,11 @@
 # Validation
 
+## Local performance and source cleanup candidate
+
+The automated gate contains 860 checks. Added checks cover empty-name rendering without unrelated rule loads, fresh named rendering after rule edits, inventory scope lifetime and disposal, and execution/write isolation from inventory snapshots. The web checks verify paired error translations, multiline exported function execution, exact source-to-resource assembly and full GET-only page initialization.
+
+Existing concurrency, source-authority, late-result, dictionary, browser-state and recovery regressions remain in the same gate. Performance comparisons use exact before/after assemblies on owned data copies or isolated Jellyfin hosts with synthetic transport; they do not issue real provider calls or change the installed plugin. Changes to local operation timings are separate from actual model latency and browser rendering performance.
+
 ## Release candidate: 1.0.0-rc.3
 
 Added regressions exercise verified name slots, ordinary words containing a translated name, identical frozen names, renamed/deleted rules and unchanged historical plain text. Injected HTTP tests verify that both title and synopsis parsers retain usable templates.

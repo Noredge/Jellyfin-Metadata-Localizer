@@ -1,3 +1,4 @@
+import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -6,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
 const checks=[];const check=(name,fn)=>{fn();checks.push({name,passed:true});};
-function extract(name){const start=html.indexOf('function '+name+'(');assert(start>=0);return (html.slice(start-6,start)==='async '?'async ':'')+html.slice(start,html.indexOf('\n',start));}
+const extract = functionSource;
 const elements=new Map();const get=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',disabled:false,open:false,showModal(){this.open=true;},close(){this.open=false;}});return elements.get(id);};
 let response;const calls=[];
 const c=vm.createContext({$:get,$$:()=>[],api:async route=>{calls.push(route);return response;},escape:x=>String(x??''),name:x=>x,URLSearchParams,Date,Math,AbortController,
@@ -28,7 +29,7 @@ response=[];await c.openWork('recent-batch');
 check('opening another batch clears the exact-work filter',()=>{assert(calls.at(-1).includes('batchId=recent-batch'));assert(!calls.at(-1).includes('workId='));});
 response={fields:[],batches:[],issues:[{issue_kind:'translation',error_code:'synthetic_failure',count:1}]};await c.loadOverview();
 check('overview uses a neutral issue entry for mixed target types',()=>{assert(get('#luIssues').innerHTML.includes('查看问题'));assert(!get('#luIssues').innerHTML.includes('查看影片'));});
-check('delegated term action opens exact work without generating translation',()=>{assert(html.includes('await openWork(null,el.dataset.issueWork)'));assert(html.includes("$('#luIssueDialog').close()"));});
+check('delegated term action opens exact work without generating translation',()=>{assert.match(html,/await openWork\(null,\s*el\.dataset\.issueWork\)/);assert(html.includes("$('#luIssueDialog').close()"));});
 // Parse the entire embedded application in addition to the isolated function tests.
 const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];for(const script of scripts)new vm.Script(script[1]);
 check('whole embedded application parses',()=>assert(scripts.length>0));

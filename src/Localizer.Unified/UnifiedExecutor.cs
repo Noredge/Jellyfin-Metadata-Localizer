@@ -198,12 +198,13 @@ public sealed class UnifiedExecutor : IDisposable
     {
         if (!WorkStore.Valid(db, tx, WorkStore.Find(db, tx, w.Id)!)) return null;
         var values = new List<string>(); var ids = new List<string>();
+        var people = new PersonRenderer.Session(db, tx, w.Language);
         foreach (var original in JsonSerializer.Deserialize<string[]>(field.RenderJson)!)
         {
             using var cmd = Command(db, tx, "SELECT v.id,v.text FROM genre_terms t JOIN translation_selections s ON s.source_id=t.source_id JOIN translation_versions v ON v.id=s.translation_id WHERE t.original=$o AND s.language=$l", ("$o", original), ("$l", w.Language));
             string version;
             using (var r = cmd.ExecuteReader()) { if (!r.Read()) return null; version = r.GetString(0); }
-            ids.Add(version); values.Add(PersonRenderer.Render(db, tx, version, w.Language));
+            ids.Add(version); values.Add(people.Render(version));
         }
         var text = JsonSerializer.Serialize(values); var id = Hash(JsonSerializer.Serialize(new { w.SourceId, w.Language, versions = ids, text }));
         // A dictionary reconstruction with identical text must not replace an imported selection.

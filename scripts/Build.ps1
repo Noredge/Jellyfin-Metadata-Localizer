@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 [CmdletBinding()]
-param([string]$Dotnet = 'dotnet')
+param([string]$Dotnet = 'dotnet', [string]$Node = 'node')
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $env:DOTNET_CLI_HOME = Join-Path $repo 'work/dotnet-home'
@@ -11,6 +11,6 @@ Push-Location $repo
 try {
     & $Dotnet restore -m:1 /nodeReuse:false src/Localizer.Plugin/Localizer.Plugin.csproj --locked-mode --configfile NuGet.config
     if ($LASTEXITCODE -ne 0) { throw 'Locked restore failed.' }
-    & $Dotnet build -m:1 /nodeReuse:false -p:UseSharedCompilation=false src/Localizer.Plugin/Localizer.Plugin.csproj --no-restore -c Release -p:ContinuousIntegrationBuild=true
+    & $Dotnet build -m:1 /nodeReuse:false -p:UseSharedCompilation=false src/Localizer.Plugin/Localizer.Plugin.csproj --no-restore -c Release -p:ContinuousIntegrationBuild=true "-p:NodeExecutable=$Node"
     if ($LASTEXITCODE -ne 0) { throw 'Release build failed.' }
 } finally { Pop-Location }

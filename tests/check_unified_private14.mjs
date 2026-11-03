@@ -1,3 +1,4 @@
+import {functionSource,bindingSource,pollingSource} from './web_sources.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -6,13 +7,13 @@ import {fileURLToPath} from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(repo,'src/Localizer.Plugin/Web/unified.html'),'utf8');
 const checks=[];const check=(name,fn)=>{fn();checks.push({name,passed:true});};
-function extract(name){const start=html.indexOf('function '+name+'(');assert(start>=0);return html.slice(start,html.indexOf('\n',start));}
+const extract = functionSource;
 function fixture(){
  const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,{value:'',disabled:false,open:false,textContent:'',innerHTML:'',dataset:{},showModal(){this.open=true;},close(){this.open=false;}});return elements.get(id);};
  const calls=[],notices=[];let resolve,reject;
  const c=vm.createContext({$:get,$$:()=>[],fillLoading:false,preview:{id:'old'},state:{settings:{revision:3}},uid:()=> 'command',loadState:async()=>{},status:(...x)=>notices.push(x),escape:x=>String(x??''),URLSearchParams,personOffset:0,issueOffset:0,issueKind:'translation',issueCode:'output_budget',name:x=>x,normalize:x=>x,
   api:async(route,body)=>{calls.push({route,body});return await new Promise((a,b)=>{resolve=a;reject=b;});},detailAbort:null,AbortController,editor:null,drafts:{},fieldName:'Name',historySource:null,historyOffset:0,canCloseEditor:()=>true,renderEditor:()=>{},editPerson:()=>{}});
- for(const name of ['beginRead','makePreview','loadPeople','openMovie','loadIssues','attemptText'])vm.runInContext((['beginRead','attemptText'].includes(name)?'':'async ')+extract(name),c);
+ for(const name of ['beginRead','makePreview','loadPeople','openMovie','loadIssues','attemptText'])vm.runInContext(extract(name),c);
  return {c,get,calls,notices,resolve:x=>resolve(x),reject:x=>reject(x)};
 }
 let f=fixture(),p=f.c.makePreview(null);await new Promise(setImmediate);

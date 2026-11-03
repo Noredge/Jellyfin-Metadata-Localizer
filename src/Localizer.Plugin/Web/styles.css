@@ -1,0 +1,315 @@
+#localizerUnified {
+  --lu-bg: #171a1d;
+  --lu-panel: #22262a;
+  --lu-line: #3b4146;
+  --lu-text: #edf0ed;
+  --lu-muted: #acb6b3;
+  --lu-accent: #98cbb9;
+  color: var(--lu-text);
+}
+.lu-app {
+  max-width: 1180px;
+  margin: auto;
+  padding: 30px 24px 70px;
+  line-height: 1.6;
+  font-size: 15px;
+}
+.lu-app * {
+  box-sizing: border-box;
+}
+.lu-app [hidden] {
+  display: none !important;
+}
+.lu-head,
+.lu-row,
+.lu-nav,
+.lu-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lu-head {
+  justify-content: space-between;
+}
+.lu-app h1 {
+  font-size: 26px;
+  font-weight: 500;
+  margin: 0;
+}
+.lu-app h2 {
+  font-size: 20px;
+  font-weight: 500;
+  margin: 0 0 14px;
+}
+.lu-app h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+}
+.lu-app p {
+  margin: 10px 0;
+}
+.lu-muted,
+.lu-app small {
+  color: var(--lu-muted);
+}
+.lu-nav {
+  border-bottom: 1px solid var(--lu-line);
+  margin: 24px 0;
+}
+.lu-nav button {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 12px 18px;
+  border-bottom: 2px solid transparent;
+}
+.lu-nav button[aria-selected='true'] {
+  border-color: var(--lu-accent);
+  color: var(--lu-accent);
+}
+.lu-app button,
+.lu-app input,
+.lu-app select,
+.lu-app textarea {
+  font: inherit;
+  color: inherit;
+}
+.lu-app button {
+  border: 1px solid var(--lu-line);
+  border-radius: 7px;
+  padding: 8px 14px;
+  min-height: 38px;
+  cursor: pointer;
+  background: var(--lu-panel);
+}
+.lu-app button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.lu-app .lu-primary {
+  background: var(--lu-accent);
+  border-color: var(--lu-accent);
+  color: #15261f;
+}
+.lu-app button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+.lu-app button:focus-visible,
+.lu-app input:focus-visible,
+.lu-app textarea:focus-visible,
+.lu-app select:focus-visible {
+  outline: 2px solid var(--lu-accent);
+  outline-offset: 3px;
+}
+.lu-app input,
+.lu-app select,
+.lu-app textarea {
+  border: 1px solid var(--lu-line);
+  border-radius: 6px;
+  background: var(--lu-bg);
+  padding: 9px 11px;
+  min-width: 0;
+  width: 100%;
+}
+.lu-app input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--lu-accent);
+}
+.lu-app label {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+}
+.lu-app label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lu-app textarea {
+  min-height: 170px;
+  resize: vertical;
+  line-height: 1.7;
+}
+.lu-card {
+  border: 1px solid var(--lu-line);
+  background: var(--lu-panel);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 16px;
+}
+.lu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.lu-grid .lu-card {
+  margin-top: 0;
+}
+.lu-stat {
+  font-size: 26px;
+  display: block;
+  margin-top: 12px;
+}
+.lu-bar {
+  height: 5px;
+  background: var(--lu-line);
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 15px 0;
+}
+.lu-bar span {
+  height: 100%;
+  display: block;
+  background: var(--lu-accent);
+}
+.lu-pill {
+  border: 1px solid var(--lu-line);
+  padding: 3px 10px;
+  border-radius: 30px;
+  font-size: 12px;
+}
+.lu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lu-list > li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--lu-line);
+}
+.lu-list > li:last-child {
+  border: 0;
+}
+.lu-grow {
+  flex: 1;
+  min-width: 0;
+}
+.lu-app .lu-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lu-accent);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.lu-toolbar {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+.lu-app .lu-status {
+  color: var(--lu-accent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 12px 0;
+}
+.lu-error {
+  color: #edb8a6 !important;
+}
+.lu-read {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--lu-bg);
+  border-radius: 6px;
+  margin: 8px 0;
+}
+.lu-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.lu-app dialog {
+  background: var(--lu-panel);
+  color: var(--lu-text);
+  border: 1px solid var(--lu-line);
+  border-radius: 12px;
+  width: min(960px, 94vw);
+  max-height: 91vh;
+  padding: 22px;
+  overflow: auto;
+}
+.lu-app dialog::backdrop {
+  background: #0009;
+}
+.lu-dialog-head {
+  display: flex;
+  position: sticky;
+  top: -22px;
+  z-index: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  background: var(--lu-panel);
+  padding: 12px 0;
+}
+.lu-history > li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--lu-line);
+}
+.lu-dialog-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lu-dialog-head button {
+  flex-shrink: 0;
+}
+.lu-app pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.lu-app details {
+  margin-top: 16px;
+}
+.lu-app summary {
+  cursor: pointer;
+  color: var(--lu-accent);
+}
+.lu-app a {
+  color: var(--lu-accent);
+}
+.lu-recent > li {
+  padding: 8px 0;
+}
+.lu-recent .lu-link {
+  min-height: 30px;
+}
+.lu-recent time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .lu-app {
+    padding: 20px 14px 50px;
+  }
+  .lu-grid,
+  .lu-two,
+  .lu-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .lu-card {
+    padding: 15px;
+  }
+  .lu-head {
+    align-items: flex-start;
+  }
+  .lu-app h1 {
+    font-size: 23px;
+  }
+  .lu-app dialog {
+    padding: 16px;
+  }
+  .lu-nav button {
+    padding: 12px;
+  }
+  .lu-actions > button {
+    flex-grow: 1;
+  }
+}

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Reuse enumerated movies and library settings within one inventory observation. Display-name reads use the host's item lookup; request and write boundaries continue to read fresh sources.
+- Load person rules only when a saved version actually needs name processing. Share a lazy rule snapshot within a dictionary-render transaction while retaining immutable text and legacy ambiguity protection.
+- Group fill, language and submission reads by movie so their existing bounded read scopes share NFO bytes, XML parsing and host resolution.
+- Keep readable page, style and script sources by responsibility, assemble the same single embedded page, pair error translations by code, and replace line-based test extraction with named exports.
+
 ## 1.0.0-rc.3
 
 - Store verified person placeholders with new model results and rerender only those positions. Identical display names keep their own identities; ordinary words are never globally replaced. Historical plain text is preserved, with an actionable repair error when changed rules cannot be applied safely.

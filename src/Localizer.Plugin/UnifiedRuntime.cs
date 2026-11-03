@@ -169,28 +169,36 @@ public sealed class UnifiedRuntime : IDisposable
         }
         var seeds = new List<WorkSeed>();
         foreach (var item in identities)
+        {
+            using var sourceRead = Host.BeginReadScope(item.Key, settings);
+            var details = content.ReadDetails(item.Id);
             foreach (var field in new[] { "Name", "Overview", "Genres" }.Where(f => settings.Fields.Includes(f) && (fields is null || fields.Contains(f, StringComparer.Ordinal))))
             {
-                var state = content.ReadField(item.Id, field); if (state is null || state.Availability != "available") continue;
+                var state = details.Fields.SingleOrDefault(x => x.State.Field == field)?.State; if (state is null || state.Availability != "available") continue;
                 var actual = await Host.ReadAsync(item.Key, field, token);
                 if (!actual.Present || actual.SourceError is not null) continue;
                 // Executor re-observes and rejects any change after this preview.
                 seeds.Add(new(state, actual.Display));
             }
+        }
         return [.. seeds];
     }
     public async Task<(WorkSeed[] Seeds, long Skipped, int Changed)> MissingSeedsAsync(string[]? mediaIds, string[]? fields, CancellationToken token)
     {
         var plan = new FillPlanner(Database).Read(mediaIds, fields); var seeds = new List<WorkSeed>(); var changed = 0;
-        foreach (var candidate in plan.Candidates)
+        foreach (var group in plan.Candidates.GroupBy(x => x.Field.MediaId))
         {
-            token.ThrowIfCancellationRequested(); var f = candidate.Field;
-            var actual = await Host.ReadAsync(candidate.Key, f.Field, token);
-            if (!actual.Present || actual.SourceError is not null || actual.Original is null
-                || !UnifiedExecutor.SameOriginal(f.Field, actual.Original, f.Content) || actual.Prefix != f.Prefix
-                || f.Field == "Genres" && !JsonSerializer.Deserialize<string[]>(actual.Original)!.SequenceEqual(JsonSerializer.Deserialize<string[]>(f.RenderJson)!))
-            { changed++; continue; }
-            seeds.Add(new(f, actual.Display));
+            using var sourceRead = Host.BeginReadScope(group.First().Key);
+            foreach (var candidate in group)
+            {
+                token.ThrowIfCancellationRequested(); var f = candidate.Field;
+                var actual = await Host.ReadAsync(candidate.Key, f.Field, token);
+                if (!actual.Present || actual.SourceError is not null || actual.Original is null
+                    || !UnifiedExecutor.SameOriginal(f.Field, actual.Original, f.Content) || actual.Prefix != f.Prefix
+                    || f.Field == "Genres" && !JsonSerializer.Deserialize<string[]>(actual.Original)!.SequenceEqual(JsonSerializer.Deserialize<string[]>(f.RenderJson)!))
+                { changed++; continue; }
+                seeds.Add(new(f, actual.Display));
+            }
         }
         return ([.. seeds], plan.Skipped, changed);
     }
