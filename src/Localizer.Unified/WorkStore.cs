@@ -156,22 +156,23 @@ public sealed class WorkStore(UnifiedDatabase database, Func<DateTimeOffset>? ut
         });
     }
     public string? EnqueueAutomatic(string kind, WorkSeed seed, bool deferUntilBaseline = false, string? observationId = null)
+        => database.Write((db, tx) => EnqueueAutomatic(db, tx, kind, seed, deferUntilBaseline, observationId));
+
+    internal string? EnqueueAutomatic(SqliteConnection db, SqliteTransaction tx, string kind, WorkSeed seed,
+        bool deferUntilBaseline, string? observationId)
     {
         if (kind is not ("added" or "nfo")) throw new ArgumentException("InvalidAutomaticIntent");
-        return database.Write((db, tx) =>
-        {
-            var s = SettingsStore.Read(db, tx); var f = ContentStore.RequireCurrent(db, tx, seed.Field);
-            if (!s.AutoEnabled || !s.BaselineEstablished && !deferUntilBaseline || !InScope(db, tx, f.MediaId, f.Field, s) || f.Availability == "empty") return null;
-            var intent = Scalar<long>(db, tx, "SELECT revision FROM display_intents WHERE media_id=$m AND field=$f", ("$m", f.MediaId), ("$f", f.Field));
-            var key = Hash(JsonSerializer.Serialize(new { kind, f.MediaId, f.Field, f.SourceRevision, f.ControlRevision, f.RenderRevision, s.TargetEpoch, seed.ExpectedDisplay, intent }));
-            var workId = EnqueueMedia(db, tx, f, seed.ExpectedDisplay, s, "reuse", false, true, "sync", key);
-            var submission = "automatic/" + (observationId ?? key) + "/" + kind + "/" + s.TargetEpoch;
-            var batch = Hash("batch\0" + submission);
-            Execute(db, tx, "INSERT OR IGNORE INTO batches(id,submission_key,request_fingerprint,kind,language,target_epoch,created_utc) VALUES($id,$key,$fp,$k,$l,$e,$n)",
-                ("$id", batch), ("$key", submission), ("$fp", Hash(submission)), ("$k", kind), ("$l", s.Language), ("$e", s.TargetEpoch), ("$n", Stamp()));
-            Execute(db, tx, "INSERT OR IGNORE INTO batch_items VALUES($b,$w,1)", ("$b", batch), ("$w", workId));
-            return workId;
-        });
+        var s = SettingsStore.Read(db, tx); var f = ContentStore.RequireCurrent(db, tx, seed.Field);
+        if (!s.AutoEnabled || !s.BaselineEstablished && !deferUntilBaseline || !InScope(db, tx, f.MediaId, f.Field, s) || f.Availability == "empty") return null;
+        var intent = Scalar<long>(db, tx, "SELECT revision FROM display_intents WHERE media_id=$m AND field=$f", ("$m", f.MediaId), ("$f", f.Field));
+        var key = Hash(JsonSerializer.Serialize(new { kind, f.MediaId, f.Field, f.SourceRevision, f.ControlRevision, f.RenderRevision, s.TargetEpoch, seed.ExpectedDisplay, intent }));
+        var workId = EnqueueMedia(db, tx, f, seed.ExpectedDisplay, s, "reuse", false, true, "sync", key);
+        var submission = "automatic/" + (observationId ?? key) + "/" + kind + "/" + s.TargetEpoch;
+        var batch = Hash("batch\0" + submission);
+        Execute(db, tx, "INSERT OR IGNORE INTO batches(id,submission_key,request_fingerprint,kind,language,target_epoch,created_utc) VALUES($id,$key,$fp,$k,$l,$e,$n)",
+            ("$id", batch), ("$key", submission), ("$fp", Hash(submission)), ("$k", kind), ("$l", s.Language), ("$e", s.TargetEpoch), ("$n", Stamp()));
+        Execute(db, tx, "INSERT OR IGNORE INTO batch_items VALUES($b,$w,1)", ("$b", batch), ("$w", workId));
+        return workId;
     }
     private string EnqueueMedia(SqliteConnection db, SqliteTransaction tx, FieldState f, string expected, UnifiedSettings settings,
         string generation, bool force, bool automatic, string operation, string submission)

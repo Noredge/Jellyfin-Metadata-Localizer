@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Queue synopsis and category translation when Jellyfin finishes importing the original values and display protection clears.
+
 ## 1.0.0
 
 - Unified translation storage and a durable queue for generation, saving and display.

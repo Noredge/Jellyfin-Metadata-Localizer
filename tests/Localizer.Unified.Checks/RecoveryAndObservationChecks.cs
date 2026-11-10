@@ -125,6 +125,40 @@ internal static class RecoveryAndObservationChecks
             check("automatic batch work uses the same executor and shared terms", f.Transport.Calls == 5 && f.Count("SELECT COUNT(*) FROM batch_items") == 6 && f.Count("SELECT COUNT(*) FROM work_items WHERE state='completed'") == 7);
             await f.Observer.ObserveAllAsync(); check("unchanged automatic observation creates no duplicate batch", f.Count("SELECT COUNT(*) FROM batches") == 1);
         }
+        using (var f = new ExecutorFixture(Path.Combine(root, "recovery-delayed-host-metadata")))
+        {
+            var item = f.AddHostOnly("delayed", "山を歩く。", "new-genre");
+            var title = f.Host.Get(item.Key, "Name");
+            f.Host.Change(item.Key, "Name", x => x with { Original = null, SourceError = "original_title_unavailable" });
+            f.Host.Change(item.Key, "Overview", x => x with { Display = "" });
+            f.Host.Change(item.Key, "Genres", x => x with { Display = "[]" });
+            await f.Observer.ObserveMediaAsync(item);
+            check("new NFO fields wait while the host still shows different values",
+                f.Work.List().Length == 0 && f.Count("SELECT COUNT(*) FROM display_intents WHERE state='protected'") == 2);
+
+            f.Host.Add(title);
+            foreach (var field in new[] { "Overview", "Genres" })
+                f.Host.Change(item.Key, field, x => x with { Display = x.Original! });
+            using (var db = f.Database.Open())
+                Execute(db, null, "CREATE TRIGGER reject_overview BEFORE INSERT ON work_items WHEN NEW.field='Overview' BEGIN SELECT RAISE(ABORT,'synthetic admission failure'); END");
+            var rejected = false;
+            try { await f.Observer.ObserveMediaAsync(item); }
+            catch (SqliteException error) when (error.SqliteErrorCode == 19) { rejected = true; }
+            check("interrupted automatic admission leaves the original protection available for retry",
+                rejected && f.Count("SELECT COUNT(*) FROM display_intents WHERE field='Overview' AND state='protected'") == 1);
+            using (var db = f.Database.Open()) Execute(db, null, "DROP TRIGGER reject_overview");
+
+            await f.Observer.ObserveMediaAsync(item);
+            await f.Observer.ObserveMediaAsync(item);
+            check("late host alignment admits all three fields once without an NFO revision change",
+                f.Work.List().Select(x => x.Field).Order(StringComparer.Ordinal).SequenceEqual(["Genres", "Name", "Overview"])
+                && f.Count("SELECT COUNT(*) FROM media_fields WHERE source_revision=1") == 3);
+            await f.Drain();
+            check("automatically admitted synopsis and category finish through the normal executor",
+                f.Work.List().Where(x => x.TargetKind == "media").Count(x => x.State == "completed") == 3
+                && f.Transport.Inputs.Count(x => x.Field == "Overview") == 1
+                && f.Transport.Inputs.Count(x => x.Field == "Term") == 1);
+        }
         using (var f = new ExecutorFixture(Path.Combine(root, "recovery-auto-off")))
         {
             f.AddHostOnly("auto-off"); await f.Observer.ObserveAllAsync(); var settings = f.Settings.Read();

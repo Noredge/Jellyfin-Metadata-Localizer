@@ -53,14 +53,14 @@
       "localizer.translation": {
         "type": "Project",
         "dependencies": {
-          "Localizer.Core": "[1.0.0, )",
-          "Localizer.Unified": "[1.0.0, )"
+          "Localizer.Core": "[1.0.1, )",
+          "Localizer.Unified": "[1.0.1, )"
         }
       },
       "localizer.unified": {
         "type": "Project",
         "dependencies": {
-          "Localizer.Core": "[1.0.0, )",
+          "Localizer.Core": "[1.0.1, )",
           "Microsoft.Data.Sqlite": "[10.0.11, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
           "SQLitePCLRaw.core": "[2.1.12, )"

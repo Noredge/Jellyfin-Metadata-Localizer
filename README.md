@@ -58,7 +58,7 @@ Set-Location Jellyfin-Metadata-Localizer
 
 - `Build.ps1` restores locked NuGet dependencies and builds the five plugin assemblies in Release mode.
 - `Test.ps1` runs storage, queue, translation, backup and web regression checks with synthetic provider responses. It requires no running Jellyfin server or API key.
-- `Package.ps1` builds and verifies the distribution ZIP and `SHA256SUMS.txt` under `artifacts/1.0.0/`. Install its complete `Localizer` folder as described above.
+- `Package.ps1` builds and verifies the distribution ZIP and `SHA256SUMS.txt` under `artifacts/<version>/`. Install its complete `Localizer` folder as described above.
 
 The scripts accept `-Dotnet`, `-Node` and `-Python` tool paths as applicable. To change the management page, edit `src/Localizer.Plugin/Web/` and regenerate its embedded HTML with `node scripts/Build-Web.mjs --write`.
 

@@ -58,7 +58,7 @@ Set-Location Jellyfin-Metadata-Localizer
 
 - `Build.ps1` 使用锁定的 NuGet 依赖，以 Release 模式构建五个插件程序集。
 - `Test.ps1` 检查存储、队列、翻译、备份及网页行为，使用合成供应商响应，无需运行 Jellyfin 或填写 API Key。
-- `Package.ps1` 构建并验证发布 ZIP 和 `SHA256SUMS.txt`，输出至 `artifacts/1.0.0/`；按上述安装步骤放入完整的 `Localizer` 文件夹。
+- `Package.ps1` 构建并验证发布 ZIP 和 `SHA256SUMS.txt`，输出至 `artifacts/<version>/`。按上述安装步骤放入完整的 `Localizer` 文件夹。
 
 各脚本按需支持 `-Dotnet`、`-Node`、`-Python` 工具路径参数。修改管理页面时，编辑 `src/Localizer.Plugin/Web/`，再执行 `node scripts/Build-Web.mjs --write` 生成内嵌 HTML。
 

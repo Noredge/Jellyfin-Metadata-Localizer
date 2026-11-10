@@ -142,11 +142,23 @@ public sealed class SourceObserver(WorkStore work, IUnifiedHost host, IUnifiedIn
                 // Existing history is retained; control advances so an in-flight model result cannot take over.
                 content.ProtectExternal(current, actual.Display); continue;
             }
-            if (atOriginal) current = content.AllowOriginalReset(current, actual.Display);
-            if (current.Availability == "empty") continue;
-            if (firstBaseline && !imported) continue;
-            if (changed || displayChanged && atOriginal && hasTranslation && !keep)
-                work.EnqueueAutomatic(oldPath is null || returning ? "added" : "nfo", new(current, actual.Display), deferUntilBaseline: true, observationId: group);
+            var admit = current.Availability != "empty" && (!firstBaseline || imported);
+            var kind = oldPath is null || returning ? "added" : "nfo";
+            if (atOriginal)
+            {
+                // Import can make the original visible after we already recorded its source revision.
+                // Commit protection release and admission together so a retry can still see the release.
+                work.Database.Write((db, tx) =>
+                {
+                    var restored = ContentStore.AllowOriginalReset(db, tx, current, actual.Display);
+                    var released = restored.ControlRevision != current.ControlRevision;
+                    if (admit && (changed || !keep && (released || displayChanged && hasTranslation)))
+                        work.EnqueueAutomatic(db, tx, kind, new(restored, actual.Display), deferUntilBaseline: true, observationId: group);
+                    return true;
+                });
+            }
+            else if (admit && changed)
+                work.EnqueueAutomatic(kind, new(current, actual.Display), deferUntilBaseline: true, observationId: group);
         }
         if (complete && fingerprint is not null)
         {

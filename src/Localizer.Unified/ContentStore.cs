@@ -159,7 +159,7 @@ public sealed class ContentStore(UnifiedDatabase database)
             ("$rr", current.RenderRevision), ("$v", actualDisplay), ("$n", Now()));
         return ReadField(db, tx, current.MediaId, current.Field)!;
     });
-    internal FieldState AllowOriginalReset(FieldState expected, string actualDisplay) => database.Write((db, tx) =>
+    internal static FieldState AllowOriginalReset(SqliteConnection db, SqliteTransaction tx, FieldState expected, string actualDisplay)
     {
         var current = RequireCurrent(db, tx, expected);
         if (Scalar<long>(db, tx, "SELECT COUNT(*) FROM display_intents WHERE media_id=$m AND field=$f AND mode='external'", ("$m", current.MediaId), ("$f", current.Field)) == 0) return current;
@@ -167,7 +167,7 @@ public sealed class ContentStore(UnifiedDatabase database)
         AdvanceControl(db, tx, current); current = current with { ControlRevision = current.ControlRevision + 1 };
         SetIntent(db, tx, current, Scalar<string>(db, tx, "SELECT target_language FROM settings"), null, "original", UnifiedExecutor.OriginalValue(current), actualDisplay, keep);
         Execute(db, tx, "UPDATE display_intents SET state='applied' WHERE media_id=$m AND field=$f", ("$m", current.MediaId), ("$f", current.Field)); return current;
-    });
+    }
     internal static FieldState? ReadField(SqliteConnection db, SqliteTransaction? tx, string mediaId, string field)
     {
         using var cmd = Command(db, tx, """
